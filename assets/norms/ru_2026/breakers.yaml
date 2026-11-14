@@ -1,0 +1,57 @@
+# Автоматические выключатели (ориентиры по ПУЭ / типовая практика)
+# version: ru_2026
+
+default_curve: "C"
+
+breakers:
+  - amps: 6
+    curve: "B"
+    typical_use: "Слабое освещение / спец. цепи"
+    din_modules: 1
+
+  - amps: 10
+    curve: "C"
+    typical_use: "Освещение"
+    din_modules: 1
+
+  - amps: 16
+    curve: "C"
+    typical_use: "Розеточные группы"
+    din_modules: 1
+
+  - amps: 20
+    curve: "C"
+    typical_use: "Средняя нагрузка"
+    din_modules: 1
+
+  - amps: 25
+    curve: "C"
+    typical_use: "Духовка, стиральная машина, бойлер"
+    din_modules: 1
+
+  - amps: 32
+    curve: "C"
+    typical_use: "Варочная панель, мощная нагрузка"
+    din_modules: 1
+
+  - amps: 40
+    curve: "C"
+    typical_use: "Очень мощная нагрузка / ввод"
+    din_modules: 1
+
+  - amps: 50
+    curve: "C"
+    typical_use: "Ввод"
+    din_modules: 1
+
+  - amps: 63
+    curve: "C"
+    typical_use: "Ввод (3 фазы / большая мощность)"
+    din_modules: 1
+
+# Правила подбора: автомат ≤ допустимый ток кабеля
+# Освещение → 10А, розетки → 16А, мощные → по расчёту
+selection_rules:
+  lighting_default_a: 10
+  sockets_default_a: 16
+  powerful_min_a: 25

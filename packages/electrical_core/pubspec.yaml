@@ -1,0 +1,13 @@
+name: electrical_core
+description: Ядро расчётов электрощита (чистый Dart, без Flutter)
+version: 0.0.1
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  yaml: ^3.1.2
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0

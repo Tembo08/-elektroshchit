@@ -1,0 +1,36 @@
+# УЗО и дифавтоматы (ориентиры по ПУЭ / СП 256 / ГОСТ Р 50571)
+# version: ru_2026
+
+rcd_options:
+  - ma: 10
+    typical_use: "Особо опасные зоны (по необходимости)"
+    din_modules: 2
+
+  - ma: 30
+    typical_use: "Розеточные группы, влажные помещения (основной вариант)"
+    din_modules: 2
+
+  - ma: 100
+    typical_use: "Противопожарное УЗО на вводе"
+    din_modules: 2
+
+  - ma: 300
+    typical_use: "Противопожарное УЗО на вводе (большие объекты)"
+    din_modules: 2
+
+# Правила применения
+rules:
+  sockets_require_rcd: true
+  wet_rooms_require_rcd: true          # ванная, санузел, кухня (по практике)
+  default_rcd_ma: 30
+  fire_protection_rcd_ma: 100          # опционально на вводе
+  prefer_differential_breaker: false   # false = автомат + УЗО, true = дифавтомат
+
+# DIN-модули
+# Обычный 1P автомат = 1 модуль
+# УЗО 2P = 2 модуля
+# Дифавтомат 1P+N = 2 модуля
+din_modules:
+  breaker_1p: 1
+  rcd_2p: 2
+  dif_1pn: 2

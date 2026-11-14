@@ -1,0 +1,51 @@
+# Правила автоматической группировки потребителей
+# version: ru_2026
+
+# Мощные потребители — почти всегда отдельные линии
+powerful_types:
+  - electricStove
+  - oven
+  - dishwasher
+  - washingMachine
+  - waterHeater
+  - airConditioner
+  - underfloorHeating
+  - evCharger
+  - boiler
+  - otherPowerful
+
+# Типы, которые относятся к освещению
+lighting_types:
+  - lightPoint
+  - chandelier
+  - ledStrip
+  - switchSingle
+  - switchDouble
+  - switchPassThrough
+
+# Типы розеток
+socket_types:
+  - socket
+  - refrigerator
+  - hood
+
+# Влажные помещения (обязательно УЗО 30 мА)
+wet_room_types:
+  - bathroom
+  - toilet
+  - combinedBathroom
+  - kitchen
+
+# Ограничения на объединение
+limits:
+  max_sockets_per_group: 10
+  max_power_kw_per_socket_group: 3.5
+  max_lighting_points_per_group: 15
+
+# Принципы
+principles:
+  - "Мощные потребители → отдельная линия"
+  - "Розеточные группы одной комнаты можно объединять (с лимитами)"
+  - "Освещение можно группировать агрессивнее"
+  - "Влажные зоны → обязательно УЗО 30 мА"
+  - "Кухонные розетки желательно отдельной группой"

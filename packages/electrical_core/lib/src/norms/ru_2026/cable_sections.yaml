@@ -1,0 +1,41 @@
+# Сечения медного кабеля ВВГнг-LS (ориентиры по ПУЭ / СП 256)
+# version: ru_2026
+
+cable_type_default: "ВВГнг-LS"
+
+sections:
+  - section_mm2: 1.5
+    max_current_a: 10
+    typical_use: "Освещение"
+    cores: 3
+    description: "ВВГнг-LS 3×1.5"
+
+  - section_mm2: 2.5
+    max_current_a: 16
+    typical_use: "Розеточные группы"
+    cores: 3
+    description: "ВВГнг-LS 3×2.5"
+
+  - section_mm2: 4.0
+    max_current_a: 25
+    typical_use: "Мощные потребители (духовка, стиралка и т.п.)"
+    cores: 3
+    description: "ВВГнг-LS 3×4"
+
+  - section_mm2: 6.0
+    max_current_a: 32
+    typical_use: "Варочная панель, мощная нагрузка"
+    cores: 3
+    description: "ВВГнг-LS 3×6"
+
+  - section_mm2: 10.0
+    max_current_a: 40
+    typical_use: "Ввод / очень мощная нагрузка"
+    cores: 3
+    description: "ВВГнг-LS 3×10"
+
+# Минимальные сечения по типу нагрузки
+min_section_by_load:
+  lighting: 1.5
+  sockets: 2.5
+  powerful: 4.0
