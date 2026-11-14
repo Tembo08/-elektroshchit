@@ -11,6 +11,7 @@ class CircuitGroup {
   final bool hasRcd;
   final int? rcdMa; // 10, 30, 100, 300
   final int? rcdAmps; // номинальный ток УЗО (только для своей защиты)
+  final String? rcdType; // 'AC' / 'A' / 'S' для своей защиты
   final bool isDifferentialBreaker; // true = дифавтомат
   final int dinModules;
   final String cableType; // "ВВГнг-LS 3×2.5"
@@ -38,6 +39,7 @@ class CircuitGroup {
     this.hasRcd = false,
     this.rcdMa,
     this.rcdAmps,
+    this.rcdType,
     this.isDifferentialBreaker = false,
     required this.dinModules,
     required this.cableType,
@@ -60,6 +62,7 @@ class CircuitGroup {
     bool? hasRcd,
     int? rcdMa,
     int? rcdAmps,
+    String? rcdType,
     bool? isDifferentialBreaker,
     int? dinModules,
     String? cableType,
@@ -81,6 +84,7 @@ class CircuitGroup {
       hasRcd: hasRcd ?? this.hasRcd,
       rcdMa: rcdMa ?? this.rcdMa,
       rcdAmps: rcdAmps ?? this.rcdAmps,
+      rcdType: rcdType ?? this.rcdType,
       isDifferentialBreaker:
           isDifferentialBreaker ?? this.isDifferentialBreaker,
       dinModules: dinModules ?? this.dinModules,

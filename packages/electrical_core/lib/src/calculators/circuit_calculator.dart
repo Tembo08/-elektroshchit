@@ -76,6 +76,7 @@ class CircuitCalculator {
       for (final c in room.consumers) {
         final typeName = c.type.name;
         if (c.isPowerful || norms.powerfulTypes.contains(typeName)) {
+          if (c.quantity < 1) continue;
           powerLines.add(_PowerLine(room, c));
         } else if (norms.lightingTypes.contains(typeName)) {
           lightingUnits.addAll(_expand(c, roomIndex));
@@ -429,11 +430,16 @@ class CircuitCalculator {
       math.max(current, norms.powerfulMinAmps.toDouble()),
     );
     if (breakerNorm == null) {
+      // Не откатываемся на 16 А — это заведомо неверная защита.
+      // Берём максимальный номинал и предупреждаем: нужен инженерный расчёт.
+      final maxAmps = norms.breakers
+          .map((b) => b.amps)
+          .fold<int>(0, (m, a) => a > m ? a : m);
       warnings.add(
-        'Ряд автоматов не покрывает ток ${current.toStringAsFixed(1)} А — '
-        'нужен расчёт распределения/другой ряд',
+        'Ток ${current.toStringAsFixed(1)} А выходит за ряд автоматов '
+        '(максимум $maxAmps А) — нужен инженерный расчёт, а не автоподбор',
       );
-      breakerNorm = norms.breakerByAmps(norms.powerfulMinAmps);
+      breakerNorm = norms.breakerByAmps(maxAmps);
     }
     final breaker = breakerNorm?.amps ?? norms.powerfulMinAmps;
 
@@ -452,12 +458,22 @@ class CircuitCalculator {
       );
     }
 
+    if (phases == 3 && phaseSystem == PhaseSystem.single) {
+      warnings.add(
+        'Прибор указан трёхфазным, но проект однофазный — так подключить '
+        'нельзя: либо переводите объект на 3 фазы, либо прибор на 1 фазу',
+      );
+    }
+
     final inWetRoom = norms.wetRoomTypes.contains(room.type.name);
     final hasRcd = inWetRoom || consumer.requiresRcd;
     final rcdMa = hasRcd ? (_isBathroom(room.type) ? norms.bathRcdMa : norms.defaultRcdMa) : null;
 
     final rcdModules = phases == 3 ? 4 : 2;
     final din = breakerDinModules(breaker, phases) + (hasRcd ? rcdModules : 0);
+    final rcdType = hasRcd && norms.typeAElectronicTypes.contains(consumer.type.name)
+        ? norms.typeARcdType
+        : norms.rcdType;
     final cores = phases == 3 ? 5 : 3;
 
     return CircuitGroup(
@@ -472,6 +488,7 @@ class CircuitCalculator {
       hasRcd: hasRcd,
       rcdMa: rcdMa,
       rcdAmps: hasRcd ? norms.rcdRatingAtLeast(breaker.toDouble()) : null,
+      rcdType: hasRcd ? rcdType : null,
       dinModules: din,
       cableType:
           '${norms.cableTypeDefault} $cores×${_formatSection(section.sectionMm2)}',
@@ -601,7 +618,8 @@ class CircuitCalculator {
   }
 
   /// Раскладывает точки по линиям: не больше [maxUnits] точек и
-  /// [maxPowerKw] на линию, но не меньше [minLines] линий, если точек хватает.
+  /// [maxPowerKw] на линию. Число линий — ровно max(запрос, требование лимитов):
+  /// не плодим лишние линии «на комнату», но и не смешиваем комнаты без нужды.
   List<List<_Unit>> _pack(
     List<_Unit> units, {
     required int maxUnits,
@@ -616,38 +634,65 @@ class CircuitCalculator {
         if (byRoom != 0) return byRoom;
         return b.powerKw.compareTo(a.powerKw);
       });
-    final buckets = <List<_Unit>>[];
+
+    final totalPower = units.fold<double>(0, (s, u) => s + u.powerKw);
+    final required = math.max(
+      1,
+      math.max(
+        math.max(1, minLines),
+        math.max(
+          (units.length / maxUnits).ceil(),
+          (totalPower / maxPowerKw - 0.001).ceil(),
+        ),
+      ),
+    );
+
+    final buckets = List.generate(required, (_) => <_Unit>[]);
+    double powerOf(List<_Unit> b) => b.fold<double>(0, (s, u) => s + u.powerKw);
+    bool fits(List<_Unit> b, _Unit u) =>
+        b.length < maxUnits && powerOf(b) + u.powerKw <= maxPowerKw + 0.001;
 
     for (final u in sorted) {
-      // Кладём в первую подходящую линию, но не смешиваем комнаты:
-      // линия продолжается, только если она того же помещения.
-      List<_Unit>? target;
+      var placed = false;
+      // 1) Продолжаем линию той же комнаты.
       for (final b in buckets) {
-        final sameRoom =
-            b.isEmpty || b.last.roomOrder == u.roomOrder;
-        if (!sameRoom) continue;
-        final power = b.fold<double>(0, (s, x) => s + x.powerKw);
-        if (b.length < maxUnits && power + u.powerKw <= maxPowerKw + 0.001) {
-          target = b;
+        if (b.isNotEmpty && b.last.roomOrder == u.roomOrder && fits(b, u)) {
+          b.add(u);
+          placed = true;
           break;
         }
       }
-      if (target != null) {
-        target.add(u);
-      } else {
-        buckets.add([u]);
+      if (placed) continue;
+      // 2) Заводим новую линию, если есть свободные.
+      for (final b in buckets) {
+        if (b.isEmpty && fits(b, u)) {
+          b.add(u);
+          placed = true;
+          break;
+        }
       }
+      if (placed) continue;
+      // 3) Иначе — в любую подходящую (комнаты придётся смешать).
+      for (final b in buckets) {
+        if (fits(b, u)) {
+          b.add(u);
+          placed = true;
+          break;
+        }
+      }
+      if (placed) continue;
+      // 4) Единица не влезает никуда — отдельная линия сверх плана.
+      buckets.add([u]);
     }
 
-    // Пользователь может попросить больше линий (например, свет по зонам).
-    // Делим самую большую линию на равные части — 9 точек и 3 линии дают
-    // 3+3+3, а не 7+1+1.
+    // Если пользователь попросил больше линий, чем вышло по факту, делим
+    // самую большую линию на равные части (9 точек / 3 линии = 3+3+3).
     final wanted = math.max(1, minLines);
-    while (buckets.length < wanted && sorted.length >= wanted) {
+    while (buckets.where((b) => b.isNotEmpty).length < wanted) {
       final donorIndex = buckets.indexWhere((b) => b.length > 1);
       if (donorIndex < 0) break;
       final donor = buckets[donorIndex];
-      final remaining = wanted - buckets.length + 1; // сколько частей нарезать
+      final remaining = wanted - buckets.where((b) => b.isNotEmpty).length + 1;
       final parts = math.min(remaining, donor.length);
       if (parts <= 1) break;
       final size = (donor.length / parts).ceil();
@@ -659,7 +704,8 @@ class CircuitCalculator {
       buckets.addAll(chunks);
     }
 
-    return buckets;
+    final result = buckets.where((b) => b.isNotEmpty).toList();
+    return result;
   }
 
   /// Если под одним УЗО больше [maxLines] линий — делим на несколько
@@ -738,17 +784,20 @@ class CircuitCalculator {
     return (norm?.dinModules ?? 1) * poles;
   }
 
-  /// Ток по мощности: 1 фаза — P/(230), 3 фазы — P/(230·√3).
+  /// Ток по мощности.
+  /// 1 фаза: I = P / 230.
+  /// 3 фазы: I = P / (3·230) = P / 690 (это же P / (√3·400)).
+  /// Частая ошибка — делить на 230·√3, тогда ток завышается в √3 раз.
   double _currentFromPower(double powerKw, int phases) {
     if (powerKw <= 0) return 0;
-    if (phases == 3) return (powerKw * 1000) / (230 * math.sqrt(3));
+    if (phases == 3) return (powerKw * 1000) / (3 * 230);
     return (powerKw * 1000) / 230;
   }
 
   double _consumerPower(Consumer c) {
+    if (c.quantity < 1) return 0;
     final p = c.powerKw ?? _defaultPower(c);
-    final qty = c.quantity < 1 ? 1 : c.quantity;
-    return p * qty;
+    return p * c.quantity;
   }
 
   List<_Unit> _expand(Consumer c, int roomOrder) {
@@ -762,6 +811,8 @@ class CircuitCalculator {
   }
 
   double _defaultPower(Consumer c) {
+    final fromNorms = norms.defaultPowerKw[c.type.name];
+    if (fromNorms != null && fromNorms > 0) return fromNorms;
     switch (c.type) {
       case ConsumerType.socket:
         return 0.1;
@@ -777,6 +828,22 @@ class CircuitCalculator {
       case ConsumerType.switchDouble:
       case ConsumerType.switchPassThrough:
         return 0.0;
+      case ConsumerType.electricStove:
+        return 7.0;
+      case ConsumerType.oven:
+        return 3.5;
+      case ConsumerType.dishwasher:
+      case ConsumerType.washingMachine:
+      case ConsumerType.waterHeater:
+        return 2.0;
+      case ConsumerType.boiler:
+        return 9.0;
+      case ConsumerType.evCharger:
+        return 7.0;
+      case ConsumerType.airConditioner:
+        return 2.5;
+      case ConsumerType.underfloorHeating:
+        return 1.5;
       default:
         return c.powerKw ?? 1.0;
     }
@@ -882,7 +949,8 @@ class CircuitCalculator {
         if (g.hasRcd && g.rcdMa != null && g.parentRcdId == null) {
           add(
             'УЗО ${g.rcdAmps ?? g.breakerAmps} А / ${g.rcdMa} мА, '
-            '${g.poles == 3 ? "4P" : "2P"}',
+            '${g.poles == 3 ? "4P" : "2P"}'
+            '${g.rcdType == null ? "" : ", тип ${g.rcdType}"}',
             'шт',
             1,
           );

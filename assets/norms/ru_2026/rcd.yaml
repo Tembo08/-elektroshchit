@@ -30,6 +30,15 @@ rules:
   fire_rcd_type: "S"                   # селективное, чтобы не отключать всё
   max_lines_per_rcd: 4                 # больше 4 линий на одно УЗО 30 мА не вешаем
   rcd_type: "AC"
+  type_a_rcd_type: "A"
+  # Приборы с импульсными БП / инверторы — УЗО тип A (утечка с постоянной
+  # составляющей), EV-зарядка — минимум тип A.
+  type_a_types:
+    - washingMachine
+    - dishwasher
+    - evCharger
+    - airConditioner
+    - underfloorHeating
   prefer_differential_breaker: false   # false = автомат + УЗО, true = дифавтомат
 
 # DIN-модули

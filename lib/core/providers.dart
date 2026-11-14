@@ -11,6 +11,8 @@ final normsProvider = FutureProvider<core.NormsCatalog>((ref) async {
   final rcd = await rootBundle.loadString('assets/norms/ru_2026/rcd.yaml');
   final grouping =
       await rootBundle.loadString('assets/norms/ru_2026/grouping_rules.yaml');
+  final roomDefaults =
+      await rootBundle.loadString('assets/norms/ru_2026/room_defaults.yaml');
 
   return core.NormsLoader.fromYamlTexts(
     version: 'ru_2026',
@@ -18,6 +20,7 @@ final normsProvider = FutureProvider<core.NormsCatalog>((ref) async {
     breakersYaml: breakers,
     rcdYaml: rcd,
     groupingRulesYaml: grouping,
+    roomDefaultsYaml: roomDefaults,
   );
 });
 

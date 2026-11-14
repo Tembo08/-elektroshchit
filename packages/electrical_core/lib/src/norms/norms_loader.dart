@@ -16,6 +16,7 @@ class NormsLoader {
     required String breakersYaml,
     required String rcdYaml,
     required String groupingRulesYaml,
+    String? roomDefaultsYaml,
   }) {
     final cables = _map(loadYaml(cableSectionsYaml), 'cable_sections');
     final breakersMap = _map(loadYaml(breakersYaml), 'breakers');
@@ -68,6 +69,18 @@ class NormsLoader {
         ? _map(rcdMap['rules'], 'rcd.rules')
         : YamlMap();
 
+    final defaultPower = <String, double>{};
+    if (roomDefaultsYaml != null && roomDefaultsYaml.trim().isNotEmpty) {
+      final roomDefaults = _map(loadYaml(roomDefaultsYaml), 'room_defaults');
+      final powerMap = roomDefaults['default_power_kw'];
+      if (powerMap is YamlMap) {
+        for (final entry in powerMap.entries) {
+          final value = entry.value;
+          if (value is num) defaultPower[entry.key.toString()] = value.toDouble();
+        }
+      }
+    }
+
     final ratings = <int>[];
     if (rcdMap['ratings_a'] is YamlList) {
       for (final a in _list(rcdMap['ratings_a'], 'ratings_a')) {
@@ -95,6 +108,17 @@ class NormsLoader {
       fireRcdMa: _intOr(rcdRules['fire_protection_rcd_ma'], 100),
       maxLinesPerRcd: _intOr(rcdRules['max_lines_per_rcd'], 4),
       fireRcdType: rcdRules['fire_rcd_type']?.toString().toUpperCase() ?? 'S',
+      typeARcdType: rcdRules['type_a_rcd_type']?.toString().toUpperCase() ?? 'A',
+      typeAElectronicTypes: rcdRules['type_a_types'] is YamlList
+          ? _toStringList(rcdRules['type_a_types'])
+          : const [
+              'washingMachine',
+              'dishwasher',
+              'evCharger',
+              'airConditioner',
+              'underfloorHeating',
+            ],
+      defaultPowerKw: defaultPower,
       rcdType: rcdRules['rcd_type']?.toString().toUpperCase() ?? 'AC',
       rcdRatings: ratings.isEmpty
           ? const [16, 25, 32, 40, 50, 63, 80, 100]

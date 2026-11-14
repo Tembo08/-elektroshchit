@@ -63,8 +63,6 @@ flutter:
     - assets/norms/ru_2026/grouping_rules.yaml
     - assets/norms/ru_2026/room_defaults.yaml
     - assets/norms/ru_2026/stop_scenarios.yaml
-assets:
-    - assets/norms/ru_2026/
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

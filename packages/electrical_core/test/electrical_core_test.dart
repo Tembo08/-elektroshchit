@@ -13,6 +13,7 @@ NormsCatalog loadNorms() {
     breakersYaml: File('$_normsDir/breakers.yaml').readAsStringSync(),
     rcdYaml: File('$_normsDir/rcd.yaml').readAsStringSync(),
     groupingRulesYaml: File('$_normsDir/grouping_rules.yaml').readAsStringSync(),
+    roomDefaultsYaml: File('$_normsDir/room_defaults.yaml').readAsStringSync(),
   );
 }
 
@@ -280,9 +281,11 @@ void main() {
         ]),
       );
       final input = r.inputGroup!;
+      expect(input.calculatedCurrentA, closeTo(36.2, 0.3),
+          reason: 'ток 3 фаз = P/(3·230), а не P/(230·√3)');
+      expect(input.breakerAmps, 40);
+      expect(input.cableSectionMm2, 10);
       expect(input.cableType, contains('5×'));
-      expect(input.breakerAmps, greaterThanOrEqualTo(37));
-      expect(input.cableSectionMm2, greaterThanOrEqualTo(10));
       expect(input.poles, 3);
     });
 
@@ -341,8 +344,8 @@ void main() {
         ]),
       );
       final g = r.groups.firstWhere((g) => g.name.contains('evCharger'));
-      expect(g.calculatedCurrentA, closeTo(17.6, 0.2));
-      expect(g.breakerAmps, 20);
+      expect(g.calculatedCurrentA, closeTo(10.1, 0.2));
+      expect(g.breakerAmps, 16);
       expect(g.poles, 3);
       expect(g.dinModules, 3 + 4, reason: '3P автомат + 4P УЗО');
       expect(g.cableType, contains('5×'));
@@ -363,6 +366,65 @@ void main() {
       expect(
         g.warnings.any((w) => w.contains('таблица сечений кончилась')),
         isFalse,
+      );
+    });
+  });
+
+  group('защита от неверного ввода данных', () {
+    test('прибор мощнее ряда автоматов не получает 16 А', () {
+      final r = calc.calculate(
+        project(powerKw: 40, rooms: [
+          room('Гараж', RoomType.technical, [
+            c('h', ConsumerType.otherPowerful, power: 25.0, powerful: true),
+          ]),
+        ]),
+      );
+      final g = r.groups.firstWhere((g) => g.name.contains('otherPowerful'));
+      expect(g.calculatedCurrentA, closeTo(108.7, 0.5));
+      expect(g.breakerAmps, greaterThan(16));
+      expect(g.breakerAmps, 100);
+      expect(
+        g.warnings.any((w) => w.contains('выходит за ряд автоматов')),
+        isTrue,
+      );
+    });
+
+    test('мощный прибор без powerKw получает мощность из room_defaults', () {
+      final r = calc.calculate(
+        project(powerKw: 15, rooms: [
+          room('Кухня', RoomType.kitchen, [
+            c('p', ConsumerType.electricStove, powerful: true, rcd: true),
+          ]),
+        ]),
+      );
+      final g = r.groups.firstWhere((g) => g.name.contains('electricStove'));
+      expect(g.totalPowerKw, 7.0);
+      expect(g.breakerAmps, 32);
+    });
+
+    test('прибор с quantity 0 не попадает в щит', () {
+      final r = calc.calculate(
+        project(rooms: [
+          room('Кухня', RoomType.kitchen, [
+            c('p', ConsumerType.oven, qty: 0, power: 3.5, powerful: true),
+            c('s', ConsumerType.socket, qty: 0),
+          ]),
+        ]),
+      );
+      expect(r.groups, isEmpty);
+    });
+
+    test('трёхфазный прибор в однофазном проекте — предупреждение', () {
+      final r = calc.calculate(
+        project(powerKw: 15, rooms: [
+          room('Гараж', RoomType.technical, [
+            c('ev', ConsumerType.evCharger, power: 7.0, powerful: true, phases: 3),
+          ]),
+        ]),
+      );
+      expect(
+        r.groups.first.warnings.any((w) => w.contains('проект однофазный')),
+        isTrue,
       );
     });
   });
@@ -423,6 +485,40 @@ void main() {
       }
     });
 
+    test('влажная комната даёт УЗО даже без флага requiresRcd', () {
+      final r = calc.calculate(
+        project(powerKw: 15, rooms: [
+          room('Кухня', RoomType.kitchen, [
+            c('p', ConsumerType.electricStove, power: 7.0, powerful: true),
+          ]),
+        ]),
+      );
+      final g = r.groups.firstWhere((g) => g.name.contains('electricStove'));
+      expect(g.hasRcd, isTrue);
+      expect(g.rcdMa, 30);
+      expect(g.dinModules, 1 + 2);
+    });
+
+    test('техника с импульсным БП получает УЗО тип A', () {
+      final r = calc.calculate(
+        project(powerKw: 15, rooms: [
+          room('Кухня', RoomType.kitchen, [
+            c('w', ConsumerType.washingMachine, power: 2.0, powerful: true),
+          ]),
+          room('Зал', RoomType.livingRoom, [c('s', ConsumerType.socket, qty: 4)]),
+        ]),
+      );
+      final washer = r.groups.firstWhere((g) => g.name.contains('washingMachine'));
+      expect(washer.rcdType, 'A');
+      final socketRcd =
+          r.panel.protectionDevices.firstWhere((d) => d.name.contains('розетки'));
+      expect(socketRcd.rcdType, 'AC');
+      expect(
+        r.panel.materials.any((m) => m.name.contains('тип A')),
+        isTrue,
+      );
+    });
+
     test('санузел — 10 мА, номинал не ниже автомата', () {
       final r = calc.calculate(
         project(rooms: [
@@ -448,6 +544,100 @@ void main() {
       expect(input.hasRcd, isTrue);
       expect(input.rcdMa, 100);
       expect(input.rcdAmps, greaterThanOrEqualTo(input.breakerAmps));
+    });
+  });
+
+  group('фазы и мощность', () {
+    test('3 фазы: однофазные линии раскиданы по L1/L2/L3', () {
+      final r = calc.calculate(
+        project(powerKw: 15, phase: PhaseSystem.three, rooms: [
+          room('Кухня', RoomType.kitchen, [c('k', ConsumerType.socket, qty: 6)]),
+          room('Зал', RoomType.livingRoom, [c('z', ConsumerType.socket, qty: 6)]),
+          room('Спальня', RoomType.bedroom, [c('s', ConsumerType.socket, qty: 6)]),
+          room('Котельная', RoomType.technical, [
+            c('ev', ConsumerType.evCharger, power: 7.0, powerful: true, phases: 3),
+          ]),
+        ]),
+        socketLines: 3,
+        lightingLines: 1,
+      );
+      final phases = r.groups
+          .where((g) => g.poles == 1)
+          .map((g) => g.phase)
+          .toSet();
+      expect(phases, {'L1', 'L2', 'L3'});
+      final ev = r.groups.firstWhere((g) => g.name.contains('evCharger'));
+      expect(ev.phase, 'L1-L2-L3');
+    });
+
+    test('10 розеток по 0,5 кВт = 5 кВт → две линии, а не одна', () {
+      final r = calc.calculate(
+        project(rooms: [
+          room('Мастерская', RoomType.technical, [
+            c('s', ConsumerType.socket, qty: 10, power: 0.5),
+          ]),
+        ]),
+        socketLines: 1,
+      );
+      final sockets = r.groups.where((g) => g.name.contains('Розетки')).toList();
+      expect(sockets.length, 2);
+      for (final g in sockets) {
+        expect(g.totalPowerKw, lessThanOrEqualTo(3.5 + 0.001));
+        expect(g.calculatedCurrentA, lessThanOrEqualTo(16));
+      }
+    });
+
+    test('порог «тяжёлой» нагрузки: 3,5 кВт даёт 4 мм², 3,4 кВт — 2,5', () {
+      final heavy = calc.calculate(
+        project(powerKw: 15, rooms: [
+          room('Кухня', RoomType.kitchen, [
+            c('o', ConsumerType.oven, power: 3.5, powerful: true),
+          ]),
+        ]),
+      );
+      final light = calc.calculate(
+        project(powerKw: 15, rooms: [
+          room('Кухня', RoomType.kitchen, [
+            c('o', ConsumerType.oven, power: 3.4, powerful: true),
+          ]),
+        ]),
+      );
+      expect(heavy.groups.first.cableSectionMm2, 4.0);
+      expect(light.groups.first.cableSectionMm2, 2.5);
+    });
+
+    test('перегруз ТУ выставляет isInputSufficient=false и предупреждает', () {
+      final r = calc.calculate(
+        project(powerKw: 5, rooms: [
+          room('Кухня', RoomType.kitchen, [
+            c('p', ConsumerType.electricStove, power: 7.0, powerful: true),
+          ]),
+        ]),
+      );
+      expect(r.panel.isInputSufficient, isFalse);
+      expect(r.panel.loadFactor, greaterThan(1));
+      expect(
+        r.warnings.any((w) => w.contains('превышает разрешённую мощность')),
+        isTrue,
+      );
+    });
+
+    test('расчёт детерминирован: два прогона дают одинаковые линии', () {
+      Project make() => project(rooms: [
+            room('Кухня', RoomType.kitchen, [
+              c('s1', ConsumerType.socket, qty: 12),
+              c('l1', ConsumerType.lightPoint, qty: 8),
+            ]),
+            room('Зал', RoomType.livingRoom, [
+              c('s2', ConsumerType.socket, qty: 9),
+              c('l2', ConsumerType.chandelier, power: 0.3),
+            ]),
+          ]);
+      String signature(CalculationResult r) => r.groups
+          .map((g) => '${g.name}|${g.breakerAmps}|${g.cableSectionMm2}|'
+              '${g.consumerIds.join(",")}')
+          .join(';');
+      expect(signature(calc.calculate(make())), signature(calc.calculate(make())));
     });
   });
 

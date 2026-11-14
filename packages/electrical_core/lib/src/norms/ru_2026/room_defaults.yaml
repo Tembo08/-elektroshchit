@@ -56,6 +56,6 @@ default_power_kw:
   airConditioner: 2.5
   underfloorHeating: 1.5
   evCharger: 7.0
-  boiler: 2.0
+  boiler: 9.0
   refrigerator: 0.3
   hood: 0.2

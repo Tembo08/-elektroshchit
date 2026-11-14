@@ -72,6 +72,13 @@ class NormsCatalog {
   final int bathRcdMa;
   final int fireRcdMa;
   final int maxLinesPerRcd;
+  final String typeARcdType;
+
+  /// Типы потребителей, которым нужен УЗО тип A (импульсные БП, инверторы).
+  final List<String> typeAElectronicTypes;
+
+  /// Мощности по умолчанию из room_defaults.yaml (ключ — имя ConsumerType).
+  final Map<String, double> defaultPowerKw;
   final String fireRcdType;
   final String rcdType;
 
@@ -103,6 +110,15 @@ class NormsCatalog {
     this.bathRcdMa = 10,
     this.fireRcdMa = 100,
     this.maxLinesPerRcd = 4,
+    this.typeARcdType = 'A',
+    this.typeAElectronicTypes = const [
+      'washingMachine',
+      'dishwasher',
+      'evCharger',
+      'airConditioner',
+      'underfloorHeating',
+    ],
+    this.defaultPowerKw = const {},
     this.fireRcdType = 'S',
     this.rcdType = 'AC',
   });
