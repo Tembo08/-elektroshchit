@@ -21,7 +21,17 @@ class ResultScreen extends StatelessWidget {
         );
 
     return Scaffold(
-      appBar: AppBar(title: Text(projectName)),
+      appBar: AppBar(
+        title: Text(projectName),
+        actions: [
+          IconButton(
+            tooltip: 'На главную',
+            icon: const Icon(Icons.home_outlined),
+            onPressed: () =>
+                Navigator.of(context).popUntil((route) => route.isFirst),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

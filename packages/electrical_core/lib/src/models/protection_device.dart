@@ -11,10 +11,16 @@ class ProtectionDevice {
   final String name;
   final int amps;
   final String curve; // B/C для автомата; для УЗО часто ''
-  final int? rcdMa; // 10 / 30 / 100
+  final int? rcdMa; // 10 / 30 / 100 / 300
   final int dinModules;
   /// id дочерних автоматов (только для УЗО-родителя)
   final List<String> childBreakerIds;
+
+  /// Полюсов: 2 для однофазного УЗО, 4 для трёхфазного.
+  final int poles;
+
+  /// Тип УЗО по реагированию: 'AC', 'A', 'S' (селективное, для противопожарного).
+  final String? rcdType;
 
   const ProtectionDevice({
     required this.id,
@@ -25,6 +31,8 @@ class ProtectionDevice {
     this.rcdMa,
     required this.dinModules,
     this.childBreakerIds = const [],
+    this.poles = 2,
+    this.rcdType,
   });
 
   ProtectionDevice copyWith({
@@ -36,6 +44,8 @@ class ProtectionDevice {
     int? rcdMa,
     int? dinModules,
     List<String>? childBreakerIds,
+    int? poles,
+    String? rcdType,
   }) {
     return ProtectionDevice(
       id: id ?? this.id,
@@ -46,6 +56,8 @@ class ProtectionDevice {
       rcdMa: rcdMa ?? this.rcdMa,
       dinModules: dinModules ?? this.dinModules,
       childBreakerIds: childBreakerIds ?? this.childBreakerIds,
+      poles: poles ?? this.poles,
+      rcdType: rcdType ?? this.rcdType,
     );
   }
 }

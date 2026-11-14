@@ -5,7 +5,11 @@ import 'norms_models.dart';
 /// Загружает каталог норм из YAML-строк (или Map).
 /// Flutter передаёт содержимое assets, тесты — содержимое файлов.
 class NormsLoader {
-  /// Собирает NormsCatalog из уже прочитанных YAML-текстов
+  /// Собирает NormsCatalog из уже прочитанных YAML-текстов.
+  ///
+  /// Отсутствующие необязательные ключи заменяются значениями по умолчанию,
+  /// но обязательные структуры (`sections`, `breakers`) проверяются явно:
+  /// лучше понятная ошибка загрузки, чем молча неверный щиток.
   static NormsCatalog fromYamlTexts({
     required String version,
     required String cableSectionsYaml,
@@ -13,51 +17,67 @@ class NormsLoader {
     required String rcdYaml,
     required String groupingRulesYaml,
   }) {
-    final cables = loadYaml(cableSectionsYaml) as YamlMap;
-    final breakersMap = loadYaml(breakersYaml) as YamlMap;
-    final rcdMap = loadYaml(rcdYaml) as YamlMap;
-    final grouping = loadYaml(groupingRulesYaml) as YamlMap;
+    final cables = _map(loadYaml(cableSectionsYaml), 'cable_sections');
+    final breakersMap = _map(loadYaml(breakersYaml), 'breakers');
+    final rcdMap = _map(loadYaml(rcdYaml), 'rcd');
+    final grouping = _map(loadYaml(groupingRulesYaml), 'grouping_rules');
 
     final cableSections = <CableSectionNorm>[];
-    for (final item in (cables['sections'] as YamlList)) {
-      final m = item as YamlMap;
+    for (final item in _list(cables['sections'], 'sections')) {
+      final m = _map(item, 'sections[]');
       cableSections.add(CableSectionNorm(
-        sectionMm2: (m['section_mm2'] as num).toDouble(),
-        maxCurrentA: (m['max_current_a'] as num).toDouble(),
-        typicalUse: m['typical_use'] as String,
-        cores: m['cores'] as int,
-        description: m['description'] as String,
+        sectionMm2: _num(m['section_mm2'], 'section_mm2').toDouble(),
+        maxCurrentA: _num(m['max_current_a'], 'max_current_a').toDouble(),
+        typicalUse: m['typical_use']?.toString() ?? '',
+        cores: _num(m['cores'], 'cores').toInt(),
+        description: m['description']?.toString() ?? '',
       ));
     }
 
     final breakers = <BreakerNorm>[];
-    for (final item in (breakersMap['breakers'] as YamlList)) {
-      final m = item as YamlMap;
+    for (final item in _list(breakersMap['breakers'], 'breakers')) {
+      final m = _map(item, 'breakers[]');
       breakers.add(BreakerNorm(
-        amps: m['amps'] as int,
-        curve: m['curve'] as String,
-        typicalUse: m['typical_use'] as String,
-        dinModules: m['din_modules'] as int,
+        amps: _num(m['amps'], 'amps').toInt(),
+        curve: m['curve']?.toString() ?? 'C',
+        typicalUse: m['typical_use']?.toString() ?? '',
+        dinModules: _num(m['din_modules'], 'din_modules').toInt(),
       ));
     }
 
     final rcdOptions = <RcdNorm>[];
-    for (final item in (rcdMap['rcd_options'] as YamlList)) {
-      final m = item as YamlMap;
+    for (final item in _list(rcdMap['rcd_options'], 'rcd_options')) {
+      final m = _map(item, 'rcd_options[]');
       rcdOptions.add(RcdNorm(
-        ma: m['ma'] as int,
-        typicalUse: m['typical_use'] as String,
-        dinModules: m['din_modules'] as int,
+        ma: _num(m['ma'], 'ma').toInt(),
+        typicalUse: m['typical_use']?.toString() ?? '',
+        dinModules: _num(m['din_modules'], 'din_modules').toInt(),
       ));
     }
 
-    final limits = grouping['limits'] as YamlMap;
-    final selection = breakersMap['selection_rules'] as YamlMap? ?? YamlMap();
-    final rcdRules = rcdMap['rules'] as YamlMap? ?? YamlMap();
+    final minSections = cables['min_section_by_load'] is YamlMap
+        ? _map(cables['min_section_by_load'], 'min_section_by_load')
+        : YamlMap();
+    final groupingLimits = grouping['limits'] is YamlMap
+        ? _map(grouping['limits'], 'grouping_rules.limits')
+        : YamlMap();
+    final selection = breakersMap['selection_rules'] is YamlMap
+        ? _map(breakersMap['selection_rules'], 'selection_rules')
+        : YamlMap();
+    final rcdRules = rcdMap['rules'] is YamlMap
+        ? _map(rcdMap['rules'], 'rcd.rules')
+        : YamlMap();
+
+    final ratings = <int>[];
+    if (rcdMap['ratings_a'] is YamlList) {
+      for (final a in _list(rcdMap['ratings_a'], 'ratings_a')) {
+        ratings.add(_num(a, 'ratings_a[]').toInt());
+      }
+    }
 
     return NormsCatalog(
       version: version,
-      cableTypeDefault: cables['cable_type_default'] as String? ?? 'ВВГнг-LS',
+      cableTypeDefault: cables['cable_type_default']?.toString() ?? 'ВВГнг-LS',
       cableSections: cableSections,
       breakers: breakers,
       rcdOptions: rcdOptions,
@@ -65,13 +85,59 @@ class NormsLoader {
       lightingTypes: _toStringList(grouping['lighting_types']),
       socketTypes: _toStringList(grouping['socket_types']),
       wetRoomTypes: _toStringList(grouping['wet_room_types']),
-      maxSocketsPerGroup: limits['max_sockets_per_group'] as int? ?? 10,
+      maxSocketsPerGroup: _intOr(groupingLimits['max_sockets_per_group'], 10),
       maxPowerKwPerSocketGroup:
-          (limits['max_power_kw_per_socket_group'] as num?)?.toDouble() ?? 3.5,
-      defaultRcdMa: rcdRules['default_rcd_ma'] as int? ?? 30,
-      lightingDefaultAmps: selection['lighting_default_a'] as int? ?? 10,
-      socketsDefaultAmps: selection['sockets_default_a'] as int? ?? 16,
+          _doubleOr(groupingLimits['max_power_kw_per_socket_group'], 3.5),
+      maxLightingPointsPerGroup:
+          _intOr(groupingLimits['max_lighting_points_per_group'], 15),
+      defaultRcdMa: _intOr(rcdRules['default_rcd_ma'], 30),
+      bathRcdMa: _intOr(rcdRules['bath_rcd_ma'], 10),
+      fireRcdMa: _intOr(rcdRules['fire_protection_rcd_ma'], 100),
+      fireRcdType: rcdRules['fire_rcd_type']?.toString().toUpperCase() ?? 'S',
+      rcdType: rcdRules['rcd_type']?.toString().toUpperCase() ?? 'AC',
+      rcdRatings: ratings.isEmpty
+          ? const [16, 25, 32, 40, 50, 63, 80, 100]
+          : ratings,
+      lightingDefaultAmps: _intOr(selection['lighting_default_a'], 10),
+      socketsDefaultAmps: _intOr(selection['sockets_default_a'], 16),
+      socketsMaxAmps: _intOr(selection['sockets_max_a'], 16),
+      powerfulMinAmps: _intOr(selection['powerful_min_a'], 16),
+      lightingMaxAmps: _intOr(selection['lighting_max_a'], 16),
+      heavyLoadKw: _doubleOr(minSections['heavy_load_kw'], 3.5),
+      heavyMinSection: _doubleOr(minSections['heavy_min_section'], 4.0),
+      minSectionLighting: _doubleOr(minSections['lighting'], 1.5),
+      minSectionSockets: _doubleOr(minSections['sockets'], 2.5),
+      minSectionPowerful: _doubleOr(minSections['powerful'], 2.5),
     );
+  }
+
+  static YamlMap _map(dynamic value, String what) {
+    if (value is YamlMap) return value;
+    throw FormatException(
+      'Нормы: ожидался раздел "$what" (map), получено ${value.runtimeType}',
+    );
+  }
+
+  static YamlList _list(dynamic value, String what) {
+    if (value is YamlList) return value;
+    throw FormatException(
+      'Нормы: ожидался список "$what" (list), получено ${value.runtimeType}',
+    );
+  }
+
+  static num _num(dynamic value, String what) {
+    if (value is num) return value;
+    throw FormatException('Нормы: "$what" должен быть числом, получено $value');
+  }
+
+  static int _intOr(dynamic value, int fallback) {
+    if (value is num) return value.toInt();
+    return fallback;
+  }
+
+  static double _doubleOr(dynamic value, double fallback) {
+    if (value is num) return value.toDouble();
+    return fallback;
   }
 
   static List<String> _toStringList(dynamic value) {

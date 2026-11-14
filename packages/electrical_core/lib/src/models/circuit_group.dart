@@ -10,14 +10,21 @@ class CircuitGroup {
   final String breakerCurve; // "B", "C", "D"
   final bool hasRcd;
   final int? rcdMa; // 10, 30, 100, 300
+  final int? rcdAmps; // номинальный ток УЗО (только для своей защиты)
   final bool isDifferentialBreaker; // true = дифавтомат
   final int dinModules;
   final String cableType; // "ВВГнг-LS 3×2.5"
   final String? phase; // "L1", "L2", "L3"
   final List<String> warnings;
 
+  /// Полюсов у автомата: 1 — однофазный, 3 — трёхфазный.
+  final int poles;
+
   /// id УЗО-родителя; null = своя защита (диф / отдельное УЗО)
   final String? parentRcdId;
+
+  /// Полюсов у УЗО-родителя (2 или 4); null — своей защиты нет.
+  final int? parentRcdPoles;
 
   const CircuitGroup({
     required this.id,
@@ -30,12 +37,15 @@ class CircuitGroup {
     this.breakerCurve = 'C',
     this.hasRcd = false,
     this.rcdMa,
+    this.rcdAmps,
     this.isDifferentialBreaker = false,
     required this.dinModules,
     required this.cableType,
     this.phase,
     this.warnings = const [],
+    this.poles = 1,
     this.parentRcdId,
+    this.parentRcdPoles,
   });
 
   CircuitGroup copyWith({
@@ -49,12 +59,15 @@ class CircuitGroup {
     String? breakerCurve,
     bool? hasRcd,
     int? rcdMa,
+    int? rcdAmps,
     bool? isDifferentialBreaker,
     int? dinModules,
     String? cableType,
     String? phase,
     List<String>? warnings,
+    int? poles,
     String? parentRcdId,
+    int? parentRcdPoles,
   }) {
     return CircuitGroup(
       id: id ?? this.id,
@@ -67,13 +80,16 @@ class CircuitGroup {
       breakerCurve: breakerCurve ?? this.breakerCurve,
       hasRcd: hasRcd ?? this.hasRcd,
       rcdMa: rcdMa ?? this.rcdMa,
+      rcdAmps: rcdAmps ?? this.rcdAmps,
       isDifferentialBreaker:
           isDifferentialBreaker ?? this.isDifferentialBreaker,
       dinModules: dinModules ?? this.dinModules,
       cableType: cableType ?? this.cableType,
       phase: phase ?? this.phase,
       warnings: warnings ?? this.warnings,
+      poles: poles ?? this.poles,
       parentRcdId: parentRcdId ?? this.parentRcdId,
+      parentRcdPoles: parentRcdPoles ?? this.parentRcdPoles,
     );
   }
 }

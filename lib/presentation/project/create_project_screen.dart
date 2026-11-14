@@ -124,7 +124,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
             const Text('Заземление', style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             DropdownButtonFormField<core.GroundingSystem>(
-              value: _grounding,
+              initialValue: _grounding,
               decoration: const InputDecoration(border: OutlineInputBorder()),
               items: const [
                 DropdownMenuItem(

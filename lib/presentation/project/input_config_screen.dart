@@ -28,7 +28,7 @@ class _InputConfigScreenState extends State<InputConfigScreen> {
   late int _selectedAmps;
   late String _reason;
 
-  static const _ampsRow = [25, 32, 40, 50, 63];
+  static const _ampsRow = [16, 25, 32, 40, 50, 63];
 
   static const _markerTypes = {
     core.ConsumerType.electricStove,
@@ -83,8 +83,8 @@ class _InputConfigScreenState extends State<InputConfigScreen> {
         );
       }
       return (
-        40,
-        'ТУ не указано. По умолчанию ориентир — 40 А. '
+        25,
+        'ТУ не указано. По умолчанию ориентир — 25 А. '
             'Введите мощность из договора, чтобы уточнить.',
       );
     }
@@ -94,8 +94,9 @@ class _InputConfigScreenState extends State<InputConfigScreen> {
         ? (tuKw * 1000) / (230 * 1.732)
         : (tuKw * 1000) / 230;
 
+    // Не задираем номинал «на всякий случай»: автомат ввода не должен
+    // быть больше, чем позволяет ТУ и вводной кабель.
     var fromTu = _ampsRow.firstWhere((a) => a >= current, orElse: () => 63);
-    if (fromTu < 40) fromTu = 40;
 
     // Подсказка по составу объекта
     final heavy = roomCount >= 5 && markerCount >= 2 || markerCount >= 3;

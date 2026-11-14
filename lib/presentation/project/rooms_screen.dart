@@ -160,6 +160,8 @@ class _RoomsScreenState extends State<RoomsScreen> {
         return 'Балкон';
       case core.RoomType.technical:
         return 'Техническое';
+      case core.RoomType.entrance:
+        return 'Прихожая';
       case core.RoomType.other:
         return 'Другое';
     }
@@ -309,6 +311,8 @@ class _AddRoomDialogState extends State<_AddRoomDialog> {
         return 'Балкон';
       case core.RoomType.technical:
         return 'Котельная';
+      case core.RoomType.entrance:
+        return 'Прихожая';
       case core.RoomType.other:
         return 'Комната';
     }
@@ -323,7 +327,7 @@ class _AddRoomDialogState extends State<_AddRoomDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<core.RoomType>(
-              value: _type,
+              initialValue: _type,
               decoration: const InputDecoration(
                 labelText: 'Тип',
                 border: OutlineInputBorder(),

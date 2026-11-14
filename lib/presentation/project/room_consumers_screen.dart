@@ -232,7 +232,7 @@ class _AddConsumerDialogState extends State<_AddConsumerDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<core.ConsumerType>(
-              value: _type,
+              initialValue: _type,
               decoration: const InputDecoration(
                 labelText: 'Тип',
                 border: OutlineInputBorder(),

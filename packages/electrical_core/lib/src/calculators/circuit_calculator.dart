@@ -5,8 +5,8 @@ import '../models/consumer.dart';
 import '../models/enums.dart';
 import '../models/panel_result.dart';
 import '../models/project.dart';
-import '../models/room.dart';
 import '../models/protection_device.dart';
+import '../models/room.dart';
 import '../norms/norms_models.dart';
 
 class CalculationResult {
@@ -21,6 +21,23 @@ class CalculationResult {
     required this.warnings,
     this.inputGroup,
   });
+}
+
+/// Единица расчёта: одна точка (розетка/светильник) или один прибор.
+class _Unit {
+  final Consumer source;
+  final String label;
+  final double powerKw;
+
+  const _Unit(this.source, this.label, this.powerKw);
+}
+
+/// Мощный прибор, которому нужна отдельная линия.
+class _PowerLine {
+  final Room room;
+  final Consumer consumer;
+
+  const _PowerLine(this.room, this.consumer);
 }
 
 class CircuitCalculator {
@@ -40,193 +57,166 @@ class CircuitCalculator {
 
     final groups = <CircuitGroup>[];
     final devices = <ProtectionDevice>[];
-    var groupIndex = 1;
     var deviceIndex = 1;
 
-    // --- 1) Силовые и «прочее» по комнатам (отдельные линии) ---
-    final allLighting = <Consumer>[];
-    final allSockets = <({Room room, Consumer c})>[];
-    final bathSockets = <({Room room, Consumer c})>[];
+    // --- 1) Раскладываем потребителей по видам ---
+    final powerLines = <_PowerLine>[];
+    final otherLines = <_PowerLine>[];
+    final lightingUnits = <_Unit>[];
+    final socketUnits = <_Unit>[];
+    final bathSockets = <_Unit>[];
 
     for (final room in project.rooms) {
-      final isBath =
-          room.type == RoomType.bathroom ||
-          room.type == RoomType.combinedBathroom ||
-          room.type == RoomType.toilet;
-
+      final isBath = _isBathroom(room.type);
       for (final c in room.consumers) {
         final typeName = c.type.name;
         if (c.isPowerful || norms.powerfulTypes.contains(typeName)) {
-          groups.add(
-            _buildGroup(
-              index: groupIndex++,
-              name: '${c.name} (${room.name})',
-              consumers: [c],
-              room: room,
-              kind: _GroupKind.powerful,
-              phaseSystem: project.phaseSystem,
-              parentRcdId: null,
-            ),
-          );
+          powerLines.add(_PowerLine(room, c));
         } else if (norms.lightingTypes.contains(typeName)) {
-          allLighting.add(c);
+          lightingUnits.addAll(_expand(c));
         } else if (norms.socketTypes.contains(typeName)) {
           if (isBath) {
-            bathSockets.add((room: room, c: c));
+            bathSockets.addAll(_expand(c));
           } else {
-            allSockets.add((room: room, c: c));
+            socketUnits.addAll(_expand(c));
           }
+        } else if (typeName.startsWith('switch')) {
+          // выключатель — не нагрузка щита
         } else {
-          // выключатели и прочее — к освещению не цепляем в щит как нагрузку
-          if (typeName.startsWith('switch')) {
-            // игнор для групп щита
-          } else {
-            groups.add(
-              _buildGroup(
-                index: groupIndex++,
-                name: '${c.name} (${room.name})',
-                consumers: [c],
-                room: room,
-                kind: _GroupKind.other,
-                phaseSystem: project.phaseSystem,
-                parentRcdId: null,
-              ),
-            );
-          }
+          otherLines.add(_PowerLine(room, c));
         }
       }
     }
 
-    // --- 2) Освещение: N линий под одно УЗО 30 мА ---
-    final lightChunks = _splitConsumers(allLighting, lightingLines);
-    if (lightChunks.isNotEmpty) {
-      final rcdId = 'rcd_light_${deviceIndex++}';
-      final childIds = <String>[];
-      final dummyRoom = project.rooms.isNotEmpty
-          ? project.rooms.first
-          : Room(
-              id: 'x',
-              name: 'Объект',
-              type: RoomType.other,
-              area: 1,
-              consumers: const [],
-            );
-
-      for (var i = 0; i < lightChunks.length; i++) {
-        final chunk = lightChunks[i];
-        if (chunk.isEmpty) continue;
-        final g = _buildGroup(
-          index: groupIndex++,
-          name: lightChunks.length == 1
-              ? 'Освещение'
-              : 'Освещение — линия ${i + 1}',
-          consumers: chunk,
-          room: dummyRoom,
-          kind: _GroupKind.lighting,
-          phaseSystem: project.phaseSystem,
-          parentRcdId: rcdId,
-          forceNoOwnRcd: true,
-        );
-        groups.add(g);
-        childIds.add(g.id);
-      }
-
-      if (childIds.isNotEmpty) {
-        devices.add(
-          ProtectionDevice(
-            id: rcdId,
-            kind: ProtectionKind.rcd,
-            name: 'УЗО 30 мА (освещение)',
-            amps: _rcdAmpsForLighting(lightChunks.length),
-            rcdMa: 30,
-            dinModules: 2,
-            childBreakerIds: childIds,
-          ),
-        );
-      }
+    // --- 2) Розеточные линии обычных помещений: лимиты и потолок 16 А ---
+    final socketBuckets = _pack(
+      socketUnits,
+      maxUnits: norms.maxSocketsPerGroup,
+      maxPowerKw: norms.maxPowerKwPerSocketGroup,
+      minLines: socketLines,
+    );
+    if (socketBuckets.length > math.max(1, socketLines)) {
+      warnings.add(
+        'Розетки разбиты на ${socketBuckets.length} '
+        '${_linesWord(socketBuckets.length)}: больше '
+        '${norms.maxSocketsPerGroup} точек или '
+        '${norms.maxPowerKwPerSocketGroup.toStringAsFixed(1)} кВт на линию нельзя',
+      );
     }
-
-    // --- 3) Обычные розетки: M линий под одно УЗО 30 мА ---
-    final socketConsumers = allSockets.map((e) => e.c).toList();
-    final socketChunks = _splitConsumers(socketConsumers, socketLines);
-    if (socketChunks.isNotEmpty) {
+    if (socketBuckets.isNotEmpty) {
       final rcdId = 'rcd_sock_${deviceIndex++}';
       final childIds = <String>[];
-      final dummyRoom = project.rooms.isNotEmpty
-          ? project.rooms.first
-          : Room(
-              id: 'x',
-              name: 'Объект',
-              type: RoomType.other,
-              area: 1,
-              consumers: const [],
-            );
-
-      for (var i = 0; i < socketChunks.length; i++) {
-        final chunk = socketChunks[i];
-        if (chunk.isEmpty) continue;
-        final g = _buildGroup(
-          index: groupIndex++,
-          name: socketChunks.length == 1
+      final childAmps = <int>[];
+      for (var i = 0; i < socketBuckets.length; i++) {
+        final g = _socketGroup(
+          index: groups.length + 1,
+          name: socketBuckets.length == 1
               ? 'Розетки'
               : 'Розетки — линия ${i + 1}',
-          consumers: chunk,
-          room: dummyRoom,
-          kind: _GroupKind.sockets,
-          phaseSystem: project.phaseSystem,
-          parentRcdId: rcdId,
-          forceNoOwnRcd: true,
+          units: socketBuckets[i],
+          rcdId: rcdId,
         );
         groups.add(g);
         childIds.add(g.id);
+        childAmps.add(g.breakerAmps);
       }
+      devices.add(_parentRcd(
+        id: rcdId,
+        name: 'УЗО ${norms.defaultRcdMa} мА (розетки)',
+        rcdMa: norms.defaultRcdMa,
+        childAmps: childAmps,
+        childIds: childIds,
+        threePhase: project.phaseSystem == PhaseSystem.three,
+      ));
+    }
 
-      if (childIds.isNotEmpty) {
-        devices.add(
-          ProtectionDevice(
-            id: rcdId,
-            kind: ProtectionKind.rcd,
-            name: 'УЗО 30 мА (розетки)',
-            amps: _rcdAmpsForSockets(socketChunks.length),
-            rcdMa: 30,
-            dinModules: 2,
-            childBreakerIds: childIds,
-          ),
+    // --- 3) Освещение: N линий под одно УЗО ---
+    final lightingBuckets = _pack(
+      lightingUnits,
+      maxUnits: norms.maxLightingPointsPerGroup,
+      maxPowerKw: norms.lightingMaxAmps * 230 / 1000,
+      minLines: lightingLines,
+    );
+    if (lightingBuckets.length > math.max(1, lightingLines)) {
+      warnings.add(
+        'Освещение разбито на ${lightingBuckets.length} '
+        '${_linesWord(lightingBuckets.length)}: больше '
+        '${norms.maxLightingPointsPerGroup} точек или перегруз на линию',
+      );
+    }
+    if (lightingBuckets.isNotEmpty) {
+      final rcdId = 'rcd_light_${deviceIndex++}';
+      final childIds = <String>[];
+      final childAmps = <int>[];
+      for (var i = 0; i < lightingBuckets.length; i++) {
+        final g = _lightingGroup(
+          index: groups.length + 1,
+          name: lightingBuckets.length == 1
+              ? 'Освещение'
+              : 'Освещение — линия ${i + 1}',
+          units: lightingBuckets[i],
+          rcdId: rcdId,
         );
+        groups.add(g);
+        childIds.add(g.id);
+        childAmps.add(g.breakerAmps);
       }
+      devices.add(_parentRcd(
+        id: rcdId,
+        name: 'УЗО ${norms.defaultRcdMa} мА (освещение)',
+        rcdMa: norms.defaultRcdMa,
+        childAmps: childAmps,
+        childIds: childIds,
+        threePhase: project.phaseSystem == PhaseSystem.three,
+      ));
     }
 
-    // --- 4) Розетки санузла: отдельное УЗО 10 мА ---
-    if (bathSockets.isNotEmpty) {
+    // --- 4) Розетки санузла: отдельное УЗО (по практике — 10 мА) ---
+    final bathBuckets = _pack(
+      bathSockets,
+      maxUnits: norms.maxSocketsPerGroup,
+      maxPowerKw: norms.maxPowerKwPerSocketGroup,
+      minLines: 1,
+    );
+    if (bathBuckets.isNotEmpty) {
       final rcdId = 'rcd_bath_${deviceIndex++}';
-      final room = bathSockets.first.room;
-      final list = bathSockets.map((e) => e.c).toList();
-      final g = _buildGroup(
-        index: groupIndex++,
-        name: 'Розетки — санузел',
-        consumers: list,
-        room: room,
-        kind: _GroupKind.sockets,
-        phaseSystem: project.phaseSystem,
-        parentRcdId: rcdId,
-        forceNoOwnRcd: true,
-        forceRcdMa: 10,
-      );
-      groups.add(g);
-      devices.add(
-        ProtectionDevice(
-          id: rcdId,
-          kind: ProtectionKind.rcd,
-          name: 'УЗО 10 мА (санузел)',
-          amps: 25,
-          rcdMa: 10,
-          dinModules: 2,
-          childBreakerIds: [g.id],
-        ),
-      );
+      final childIds = <String>[];
+      final childAmps = <int>[];
+      for (var i = 0; i < bathBuckets.length; i++) {
+        final g = _socketGroup(
+          index: groups.length + 1,
+          name: bathBuckets.length == 1
+              ? 'Розетки — санузел'
+              : 'Розетки — санузел ${i + 1}',
+          units: bathBuckets[i],
+          rcdId: rcdId,
+        );
+        groups.add(g);
+        childIds.add(g.id);
+        childAmps.add(g.breakerAmps);
+      }
+      devices.add(_parentRcd(
+        id: rcdId,
+        name: 'УЗО ${norms.bathRcdMa} мА (санузел)',
+        rcdMa: norms.bathRcdMa,
+        childAmps: childAmps,
+        childIds: childIds,
+        threePhase: project.phaseSystem == PhaseSystem.three,
+      ));
     }
 
-    // Фазы
+    // --- 5) Мощные приборы и «прочее» — отдельная линия на прибор ---
+    for (final line in [...powerLines, ...otherLines]) {
+      groups.add(_powerfulGroup(
+        index: groups.length + 1,
+        room: line.room,
+        consumer: line.consumer,
+        phaseSystem: project.phaseSystem,
+      ));
+    }
+
+    // Фазы: трёхфазные Линии получают все три, однофазные распределяются
+    // по наименьшей загрузке, фаза УЗО-родителя учитывается по полюсам.
     if (project.phaseSystem == PhaseSystem.three) {
       _assignPhases(groups);
     } else {
@@ -235,12 +225,14 @@ class CircuitCalculator {
       }
     }
 
+    // --- 6) Ввод ---
     final inputGroup = _buildInputGroup(
       project,
       fixedBreakerAmps: inputBreakerAmps,
+      warnings: warnings,
     );
 
-    // DIN: ввод + УЗО-родители + автоматы групп
+    // --- 7) Итоги ---
     final groupsDin = groups.fold<int>(0, (s, g) => s + g.dinModules);
     final rcdDin = devices.fold<int>(0, (s, d) => s + d.dinModules);
     final totalDin = groupsDin + rcdDin + inputGroup.dinModules;
@@ -258,6 +250,13 @@ class CircuitCalculator {
       );
     }
 
+    // Предупреждения уровня линии поднимаем в общий список, чтобы их
+    // нельзя было не показать в интерфейсе.
+    for (final g in groups) {
+      for (final w in g.warnings) {
+        warnings.add('${g.name}: $w');
+      }
+    }
     final recommendedDin = (totalDin * 1.25).ceil();
 
     final panel = PanelResult(
@@ -280,61 +279,226 @@ class CircuitCalculator {
     );
   }
 
-  List<List<Consumer>> _splitConsumers(List<Consumer> items, int lines) {
-    if (items.isEmpty) return [];
-    final n = lines < 1 ? 1 : lines;
-    if (n == 1) return [items];
+  // ─────────────────────────── линии ───────────────────────────
 
-    // Разворачиваем quantity в «единицы» грубо: один Consumer = одна порция
-    final buckets = List.generate(n, (_) => <Consumer>[]);
-    for (var i = 0; i < items.length; i++) {
-      buckets[i % n].add(items[i]);
-    }
-    return buckets.where((b) => b.isNotEmpty).toList();
-  }
+  CircuitGroup _socketGroup({
+    required int index,
+    required String name,
+    required List<_Unit> units,
+    required String rcdId,
+  }) {
+    final power = units.fold<double>(0, (s, u) => s + u.powerKw);
+    final current = _currentFromPower(power, 1);
+    final warnings = <String>[];
 
-  /// In УЗО для освещения (линии по ~10 А)
-  int _rcdAmpsForLighting(int lines) {
-    if (lines <= 1) return 25;
-    if (lines == 2) return 25;
-    if (lines <= 4) return 40;
-    return 63;
-  }
-
-  /// In УЗО для розеток (линии по ~16 А)
-  int _rcdAmpsForSockets(int lines) {
-    if (lines <= 1) return 25;
-    if (lines == 2) return 32;
-    if (lines == 3) return 40;
-    return 63; // 4 и более
-  }
-
-  CircuitGroup _buildInputGroup(Project project, {int? fixedBreakerAmps}) {
-    final power = project.allowedPowerKw;
-    final currentA = _currentFromPower(power, project.phaseSystem);
-
-    final BreakerNorm breaker;
-    if (fixedBreakerAmps != null) {
-      breaker = norms.breakers.firstWhere(
-        (b) => b.amps == fixedBreakerAmps,
-        orElse: () =>
-            norms.breakerForCurrent(fixedBreakerAmps.toDouble()) ??
-            norms.breakers.last,
+    // Правило практики: розеточная группа — не более 16 А.
+    final breaker = math.min(norms.socketsDefaultAmps, norms.socketsMaxAmps);
+    if (current > breaker) {
+      warnings.add(
+        'Перегруз: расчётный ток ${current.toStringAsFixed(1)} А больше '
+        'автомата $breaker А — уменьшите число/мощность потребителей',
       );
-    } else {
-      final targetAmps = math.max(currentA, 40.0);
-      breaker = norms.breakerForCurrent(targetAmps) ?? norms.breakers.last;
+    }
+    final section = _chooseSection(
+      minSection: norms.minSectionSockets,
+      breakerAmps: breaker,
+      warnings: warnings,
+      label: name,
+    );
+
+    return CircuitGroup(
+      id: 'grp_$index',
+      name: 'Гр. $index — $name',
+      consumerIds: units.map((u) => u.source.id).toList(),
+      totalPowerKw: power,
+      calculatedCurrentA: current,
+      cableSectionMm2: section.sectionMm2,
+      breakerAmps: breaker,
+      breakerCurve: 'C',
+      dinModules: breakerDinModules(breaker, 1),
+      cableType: '${norms.cableTypeDefault} 3×${_formatSection(section.sectionMm2)}',
+      warnings: warnings,
+      parentRcdId: rcdId,
+      parentRcdPoles: null,
+      hasRcd: false,
+    );
+  }
+
+  CircuitGroup _lightingGroup({
+    required int index,
+    required String name,
+    required List<_Unit> units,
+    required String rcdId,
+  }) {
+    final power = units.fold<double>(0, (s, u) => s + u.powerKw);
+    final current = _currentFromPower(power, 1);
+    final warnings = <String>[];
+
+    var breakerNorm = norms.breakerForCurrent(
+      math.max(current, norms.lightingDefaultAmps.toDouble()),
+    );
+    if (breakerNorm == null) {
+      warnings.add('Ряд автоматов не покрывает ток ${current.toStringAsFixed(1)} А');
+      breakerNorm = norms.breakerByAmps(norms.lightingMaxAmps);
+    }
+    var breaker = breakerNorm?.amps ?? norms.lightingMaxAmps;
+    if (breaker > norms.lightingMaxAmps) {
+      warnings.add(
+        'Ток ${current.toStringAsFixed(1)} А: линия освещения больше '
+        '${norms.lightingMaxAmps} А не делается — делите на линии',
+      );
+      breaker = norms.lightingMaxAmps;
+    }
+    if (current > breaker) {
+      warnings.add(
+        'Перегруз: расчётный ток ${current.toStringAsFixed(1)} А больше '
+        'автомата $breaker А',
+      );
+    }
+    final section = _chooseSection(
+      minSection: norms.minSectionLighting,
+      breakerAmps: breaker,
+      warnings: warnings,
+      label: name,
+    );
+
+    return CircuitGroup(
+      id: 'grp_$index',
+      name: 'Гр. $index — $name',
+      consumerIds: units.map((u) => u.source.id).toList(),
+      totalPowerKw: power,
+      calculatedCurrentA: current,
+      cableSectionMm2: section.sectionMm2,
+      breakerAmps: breaker,
+      breakerCurve: 'C',
+      dinModules: breakerDinModules(breaker, 1),
+      cableType: '${norms.cableTypeDefault} 3×${_formatSection(section.sectionMm2)}',
+      warnings: warnings,
+      parentRcdId: rcdId,
+      hasRcd: false,
+    );
+  }
+
+  CircuitGroup _powerfulGroup({
+    required int index,
+    required Room room,
+    required Consumer consumer,
+    required PhaseSystem phaseSystem,
+  }) {
+    final phases = consumer.phases == 3 ? 3 : 1;
+    final power = _consumerPower(consumer);
+    final current = _currentFromPower(power, phases);
+    final warnings = <String>[];
+
+    var breakerNorm = norms.breakerForCurrent(
+      math.max(current, norms.powerfulMinAmps.toDouble()),
+    );
+    if (breakerNorm == null) {
+      warnings.add(
+        'Ряд автоматов не покрывает ток ${current.toStringAsFixed(1)} А — '
+        'нужен расчёт распределения/другой ряд',
+      );
+      breakerNorm = norms.breakerByAmps(norms.powerfulMinAmps);
+    }
+    final breaker = breakerNorm?.amps ?? norms.powerfulMinAmps;
+
+    final heavy = power >= norms.heavyLoadKw;
+    final section = _chooseSection(
+      minSection: heavy ? norms.heavyMinSection : norms.minSectionPowerful,
+      breakerAmps: breaker,
+      warnings: warnings,
+      label: consumer.name,
+    );
+
+    if (current > breaker) {
+      warnings.add(
+        'Перегруз: расчётный ток ${current.toStringAsFixed(1)} А больше '
+        'автомата $breaker А',
+      );
     }
 
-    final section =
-        norms.sectionForCurrent(breaker.amps.toDouble()) ??
-        norms.cableSections.last;
+    final inWetRoom = norms.wetRoomTypes.contains(room.type.name);
+    final hasRcd = inWetRoom || consumer.requiresRcd;
+    final rcdMa = hasRcd ? (_isBathroom(room.type) ? norms.bathRcdMa : norms.defaultRcdMa) : null;
 
-    const fireRcdMa = 100;
-    final din = breaker.dinModules + 2;
-    final cores = project.phaseSystem == PhaseSystem.three ? 5 : 3;
-    final cableType =
-        '${norms.cableTypeDefault} ${cores}×${_formatSection(section.sectionMm2)}';
+    final rcdModules = phases == 3 ? 4 : 2;
+    final din = breakerDinModules(breaker, phases) + (hasRcd ? rcdModules : 0);
+    final cores = phases == 3 ? 5 : 3;
+
+    return CircuitGroup(
+      id: 'grp_$index',
+      name: 'Гр. $index — ${consumer.name} (${room.name})',
+      consumerIds: [consumer.id],
+      totalPowerKw: power,
+      calculatedCurrentA: current,
+      cableSectionMm2: section.sectionMm2,
+      breakerAmps: breaker,
+      breakerCurve: 'C',
+      hasRcd: hasRcd,
+      rcdMa: rcdMa,
+      rcdAmps: hasRcd ? norms.rcdRatingAtLeast(breaker.toDouble()) : null,
+      dinModules: din,
+      cableType:
+          '${norms.cableTypeDefault} $cores×${_formatSection(section.sectionMm2)}',
+      phase: phaseSystem == PhaseSystem.three && phases == 3
+          ? 'L1-L2-L3'
+          : null,
+      warnings: warnings,
+      poles: phases,
+    );
+  }
+
+  // ─────────────────────────── ввод ───────────────────────────
+
+  CircuitGroup _buildInputGroup(
+    Project project, {
+    int? fixedBreakerAmps,
+    required List<String> warnings,
+  }) {
+    final threephase = project.phaseSystem == PhaseSystem.three;
+    final power = project.allowedPowerKw;
+    final currentA = _currentFromPower(power, threephase ? 3 : 1);
+
+    final auto = norms.breakerForCurrent(math.max(currentA, 16));
+    var breakerAmps = fixedBreakerAmps ?? auto?.amps ?? norms.breakers.last.amps;
+    final breakerNorm = norms.breakerByAmps(breakerAmps);
+    if (breakerNorm == null) {
+      warnings.add('Вводной автомат $breakerAmps А отсутствует в ряду норм');
+    }
+    if (fixedBreakerAmps != null) {
+      if (currentA > fixedBreakerAmps + 0.01) {
+        warnings.add(
+          'Вводной автомат $fixedBreakerAmps А меньше тока по ТУ '
+          '(${currentA.toStringAsFixed(1)} А) — защита не обеспечит нагрузку',
+        );
+      } else if (auto != null && fixedBreakerAmps > auto.amps) {
+        warnings.add(
+          'Вводной автомат $fixedBreakerAmps А больше требуемого по ТУ '
+          '(${auto.amps} А) — проверьте, что вводной кабель и счётчик это держат',
+        );
+      }
+    } else if (auto == null) {
+      warnings.add(
+        'Мощность по ТУ (${power.toStringAsFixed(1)} кВт, '
+        '${currentA.toStringAsFixed(1)} А) выходит за ряд автоматов — '
+        'нужен расчёт по проекту',
+      );
+    }
+
+    final poles = threephase ? 3 : 1;
+    final warningsList = <String>[
+      'На вводе рекомендуется противопожарное УЗО '
+          '${norms.fireRcdMa} мА (тип ${norms.fireRcdType})',
+    ];
+    final section = _chooseSection(
+      minSection: norms.minSectionPowerful,
+      breakerAmps: breakerAmps,
+      warnings: warnings,
+      label: 'ввод',
+    );
+    final cores = threephase ? 5 : 3;
+    final rcdAmps = norms.rcdRatingAtLeast(breakerAmps.toDouble());
+    final rcdPoles = threephase ? 4 : 2;
 
     return CircuitGroup(
       id: 'input',
@@ -343,170 +507,159 @@ class CircuitCalculator {
       totalPowerKw: power,
       calculatedCurrentA: currentA,
       cableSectionMm2: section.sectionMm2,
-      breakerAmps: breaker.amps,
-      breakerCurve: breaker.curve,
+      breakerAmps: breakerAmps,
+      breakerCurve: breakerNorm?.curve ?? 'C',
       hasRcd: true,
-      rcdMa: fireRcdMa,
-      isDifferentialBreaker: false,
-      dinModules: din,
-      cableType: cableType,
-      phase: project.phaseSystem == PhaseSystem.three ? 'L1-L2-L3' : 'L',
-      warnings: const ['На вводе рекомендуется противопожарное УЗО 100 мА'],
+      rcdMa: norms.fireRcdMa,
+      rcdAmps: rcdAmps,
+      dinModules: breakerDinModules(breakerAmps, poles) + rcdPoles,
+      cableType:
+          '${norms.cableTypeDefault} $cores×${_formatSection(section.sectionMm2)}',
+      phase: threephase ? 'L1-L2-L3' : 'L',
+      warnings: warningsList,
+      poles: poles,
+      parentRcdId: null,
     );
   }
 
-  CircuitGroup _buildGroup({
-    required int index,
-    required String name,
-    required List<Consumer> consumers,
-    required Room room,
-    required _GroupKind kind,
-    required PhaseSystem phaseSystem,
-    String? parentRcdId,
-    bool forceNoOwnRcd = false,
-    int? forceRcdMa,
+  // ─────────────────────────── утилиты ───────────────────────────
+
+  /// Выбор сечения: не меньше минимального по нагрузке и не меньше,
+  /// чем требует автомат. Если таблица кончилась — предупреждение, а не
+  /// молчаливая подмена последним сечением.
+  CableSectionNorm _chooseSection({
+    required double minSection,
+    required int breakerAmps,
+    required List<String> warnings,
+    required String label,
   }) {
-    final totalPower = consumers.fold<double>(0, (s, c) {
-      final p = c.powerKw ?? _defaultPower(c);
-      return s + p * c.quantity;
-    });
+    var section = norms.sectionAtLeast(minSection) ??
+        norms.largestSection ??
+        const CableSectionNorm(
+          sectionMm2: 1.5,
+          maxCurrentA: 10,
+          typicalUse: '',
+          cores: 3,
+          description: '',
+        );
 
-    final currentA = _currentFromPower(totalPower, phaseSystem);
-
-    late int breakerAmps;
-    late double minSection;
-    var hasRcd = false;
-    int? rcdMa;
-    final groupWarnings = <String>[];
-
-    switch (kind) {
-      case _GroupKind.lighting:
-        breakerAmps = norms.lightingDefaultAmps;
-        minSection = 1.5;
-        break;
-      case _GroupKind.sockets:
-        breakerAmps = math.max(norms.socketsDefaultAmps, _ampsCeil(currentA));
-        minSection = 2.5;
-        hasRcd = true;
-        rcdMa = norms.defaultRcdMa;
-        break;
-      case _GroupKind.powerful:
-      case _GroupKind.other:
-        final minA = currentA > 0 ? currentA : 16.0;
-        var raw = norms.breakerForCurrent(minA)?.amps ?? 16;
-        // Силовые линии — не ниже 16 А (не 6 и не 10)
-        breakerAmps = math.max(16, raw);
-        minSection = totalPower >= 3.5 ? 4.0 : 2.5;
-        // Варочная / очень мощные — сечение не меньше 6 мм² при ≥25 А
-        if (breakerAmps >= 25) {
-          minSection = math.max(minSection, 6.0);
-        }
-        hasRcd =
-            norms.wetRoomTypes.contains(room.type.name) ||
-            consumers.any((c) => c.requiresRcd);
-        if (hasRcd) rcdMa = norms.defaultRcdMa;
-        break;
+    // Поднимаем сечение, пока оно не держит автомат.
+    final sorted = [...norms.cableSections]
+      ..sort((a, b) => a.sectionMm2.compareTo(b.sectionMm2));
+    while (section.maxCurrentA < breakerAmps) {
+      final next = sorted.firstWhere(
+        (s) => s.sectionMm2 > section.sectionMm2 + 0.001,
+        orElse: () => section,
+      );
+      if (identical(next, section)) break;
+      section = next;
     }
-
-    if (kind == _GroupKind.sockets &&
-        norms.wetRoomTypes.contains(room.type.name)) {
-      hasRcd = true;
-      rcdMa = norms.defaultRcdMa;
-    }
-
-    final isBath =
-        room.type == RoomType.bathroom ||
-        room.type == RoomType.combinedBathroom ||
-        room.type == RoomType.toilet;
-
-    if (isBath && hasRcd) {
-      rcdMa = 10;
-    }
-
-    if (forceNoOwnRcd) {
-      hasRcd = false;
-      rcdMa = null;
-    }
-    if (forceRcdMa != null && !forceNoOwnRcd) {
-      hasRcd = true;
-      rcdMa = forceRcdMa;
-    }
-
-    final byBreaker = norms.sectionForCurrent(breakerAmps.toDouble());
-    final needed = math.max(minSection, byBreaker?.sectionMm2 ?? minSection);
-
-    final candidates = norms.cableSections.where(
-      (s) => s.sectionMm2 >= needed - 0.001,
-    );
-    final section = candidates.isEmpty
-        ? norms.cableSections.last
-        : candidates.reduce((a, b) => a.sectionMm2 <= b.sectionMm2 ? a : b);
-
-    final breakerNorm = norms.breakers.firstWhere(
-      (b) => b.amps == breakerAmps,
-      orElse: () => norms.breakers.first,
-    );
-    final dinModules = forceNoOwnRcd
-        ? breakerNorm.dinModules
-        : breakerNorm.dinModules + (hasRcd ? 2 : 0);
 
     if (section.maxCurrentA < breakerAmps) {
-      groupWarnings.add(
-        'Проверьте соответствие сечения ${section.sectionMm2} мм² и автомата ${breakerAmps}А',
+      warnings.add(
+        'Сечение ${section.sectionMm2} мм² (макс ${section.maxCurrentA} А) '
+        'меньше автомата $breakerAmps А — таблица сечений кончилась, '
+        'нужен инженерный расчёт ($label)',
       );
     }
+    return section;
+  }
 
-    return CircuitGroup(
-      id: 'grp_$index',
-      name: 'Гр. $index — $name',
-      consumerIds: consumers.map((c) => c.id).toList(),
-      totalPowerKw: totalPower,
-      calculatedCurrentA: currentA,
-      cableSectionMm2: section.sectionMm2,
-      breakerAmps: breakerAmps,
-      breakerCurve: 'C',
-      hasRcd: hasRcd,
+  /// Раскладывает точки по линиям: не больше [maxUnits] точек и
+  /// [maxPowerKw] на линию, но не меньше [minLines] линий, если точек хватает.
+  List<List<_Unit>> _pack(
+    List<_Unit> units, {
+    required int maxUnits,
+    required double maxPowerKw,
+    required int minLines,
+  }) {
+    if (units.isEmpty) return [];
+    final sorted = [...units]
+      ..sort((a, b) => b.powerKw.compareTo(a.powerKw));
+    final buckets = <List<_Unit>>[];
+
+    for (final u in sorted) {
+      List<_Unit>? target;
+      for (final b in buckets) {
+        final power = b.fold<double>(0, (s, x) => s + x.powerKw);
+        if (b.length < maxUnits && power + u.powerKw <= maxPowerKw + 0.001) {
+          if (target == null ||
+              power < target.fold<double>(0, (s, x) => s + x.powerKw)) {
+            target = b;
+          }
+        }
+      }
+      if (target != null) {
+        target.add(u);
+      } else {
+        buckets.add([u]);
+      }
+    }
+
+    // Пользователь может попросить больше линий (например, свет по зонам).
+    final wanted = math.max(1, minLines);
+    while (buckets.length < wanted && sorted.length >= wanted) {
+      final donor = buckets
+          .where((b) => b.length > 1)
+          .fold<List<_Unit>?>(null, (best, b) => best == null || b.length > best.length ? b : best);
+      if (donor == null) break;
+      final moved = donor.removeAt(donor.length - 1);
+      buckets.add([moved]);
+    }
+
+    return buckets;
+  }
+
+  ProtectionDevice _parentRcd({
+    required String id,
+    required String name,
+    required int rcdMa,
+    required List<int> childAmps,
+    required List<String> childIds,
+    required bool threePhase,
+  }) {
+    final sum = childAmps.fold<int>(0, (s, a) => s + a);
+    final amps = norms.rcdRatingAtLeast(sum.toDouble());
+    final poles = threePhase ? 4 : 2;
+    return ProtectionDevice(
+      id: id,
+      kind: ProtectionKind.rcd,
+      name: '$name $amps А',
+      amps: amps,
       rcdMa: rcdMa,
-      isDifferentialBreaker: false,
-      dinModules: dinModules,
-      cableType: section.description,
-      warnings: groupWarnings,
-      parentRcdId: parentRcdId,
+      dinModules: poles,
+      childBreakerIds: childIds,
+      poles: poles,
+      rcdType: norms.rcdType,
     );
   }
 
-  double _currentFromPower(double powerKw, PhaseSystem phase) {
+  int breakerDinModules(int amps, int poles) {
+    final norm = norms.breakerByAmps(amps);
+    return (norm?.dinModules ?? 1) * poles;
+  }
+
+  /// Ток по мощности: 1 фаза — P/(230), 3 фазы — P/(230·√3).
+  double _currentFromPower(double powerKw, int phases) {
     if (powerKw <= 0) return 0;
-    if (phase == PhaseSystem.three) {
-      return (powerKw * 1000) / (230 * math.sqrt(3));
-    }
+    if (phases == 3) return (powerKw * 1000) / (230 * math.sqrt(3));
     return (powerKw * 1000) / 230;
   }
 
-  int _ampsCeil(double currentA) {
-    if (currentA <= 0) return norms.socketsDefaultAmps;
-    final sorted = norms.breakers.map((b) => b.amps).toList()..sort();
-    for (final a in sorted) {
-      if (a >= currentA) return a;
-    }
-    return sorted.last;
+  double _consumerPower(Consumer c) {
+    final p = c.powerKw ?? _defaultPower(c);
+    final qty = c.quantity < 1 ? 1 : c.quantity;
+    return p * qty;
   }
 
-  void _assignPhases(List<CircuitGroup> groups) {
-    final loads = {'L1': 0.0, 'L2': 0.0, 'L3': 0.0};
-    final sorted = [...groups]
-      ..sort((a, b) => b.totalPowerKw.compareTo(a.totalPowerKw));
-
-    for (final g in sorted) {
-      final phase = loads.entries
-          .reduce((a, b) => a.value <= b.value ? a : b)
-          .key;
-      loads[phase] = loads[phase]! + g.totalPowerKw;
-      final idx = groups.indexWhere((x) => x.id == g.id);
-      if (idx >= 0) {
-        groups[idx] = groups[idx].copyWith(phase: phase);
-      }
-    }
+  List<_Unit> _expand(Consumer c) {
+    if (c.quantity < 1) return const [];
+    final qty = c.quantity;
+    final p = c.powerKw ?? _defaultPower(c);
+    return List.generate(
+      qty,
+      (i) => _Unit(c.copyWith(id: '${c.id}#$i'), c.name, p),
+    );
   }
 
   double _defaultPower(Consumer c) {
@@ -530,8 +683,41 @@ class CircuitCalculator {
     }
   }
 
+  bool _isBathroom(RoomType type) =>
+      type == RoomType.bathroom ||
+      type == RoomType.combinedBathroom ||
+      type == RoomType.toilet;
+
+  /// «1 линия / 2 линии / 5 линий» — чтобы предупреждения читались по-русски.
+  String _linesWord(int n) {
+    final mod100 = n % 100;
+    final mod10 = n % 10;
+    if (mod100 >= 11 && mod100 <= 14) return 'линий';
+    if (mod10 == 1) return 'линия';
+    if (mod10 >= 2 && mod10 <= 4) return 'линии';
+    return 'линий';
+  }
+
   String _formatSection(double s) {
     return s == s.roundToDouble() ? s.toInt().toString() : s.toString();
+  }
+
+  /// Фазы: трёхфазные линии остаются на всех трёх, однофазные раскидываем
+  /// по наименьшей загрузке.
+  void _assignPhases(List<CircuitGroup> groups) {
+    final loads = {'L1': 0.0, 'L2': 0.0, 'L3': 0.0};
+    for (var i = 0; i < groups.length; i++) {
+      final g = groups[i];
+      if (g.poles == 3) {
+        groups[i] = g.copyWith(phase: 'L1-L2-L3');
+        continue;
+      }
+      final phase = loads.entries
+          .reduce((a, b) => a.value <= b.value ? a : b)
+          .key;
+      loads[phase] = loads[phase]! + g.totalPowerKw;
+      groups[i] = g.copyWith(phase: phase);
+    }
   }
 
   String _panelSizeLabel(int modules) {
@@ -564,27 +750,43 @@ class CircuitCalculator {
       }
     }
 
+    final inputPoles = input.poles == 3 ? '3P' : '1P';
     add(
-      'Вводной автомат ${input.breakerAmps}А (${input.breakerCurve})',
+      'Вводной автомат ${input.breakerAmps} А (${input.breakerCurve}), $inputPoles',
       'шт',
       1,
     );
     if (input.hasRcd && input.rcdMa != null) {
-      add('УЗО ${input.rcdMa} мА (ввод, противопожарное)', 'шт', 1);
+      add(
+        'УЗО ${input.rcdAmps ?? input.breakerAmps} А / ${input.rcdMa} мА '
+        '(ввод, тип ${norms.fireRcdType}, ${input.poles == 3 ? "4P" : "2P"})',
+        'шт',
+        1,
+      );
     }
     add('Кабель ввода ${input.cableType}', 'м', 15);
 
     for (final d in devices) {
-      add('${d.name} ${d.amps}А', 'шт', 1);
+      add('${d.name}, ${d.poles}P', 'шт', 1);
     }
 
     for (final g in groups) {
       if (g.isDifferentialBreaker) {
-        add('Дифавтомат ${g.breakerAmps}А / ${g.rcdMa ?? 30} мА', 'шт', 1);
+        add('Дифавтомат ${g.breakerAmps} А / ${g.rcdMa ?? 30} мА', 'шт', 1);
       } else {
-        add('Автомат ${g.breakerAmps}А (${g.breakerCurve})', 'шт', 1);
+        add(
+          'Автомат ${g.breakerAmps} А (${g.breakerCurve}), '
+          '${g.poles == 3 ? "3P" : "1P"}',
+          'шт',
+          1,
+        );
         if (g.hasRcd && g.rcdMa != null && g.parentRcdId == null) {
-          add('УЗО ${g.rcdMa} мА', 'шт', 1);
+          add(
+            'УЗО ${g.rcdAmps ?? g.breakerAmps} А / ${g.rcdMa} мА, '
+            '${g.poles == 3 ? "4P" : "2P"}',
+            'шт',
+            1,
+          );
         }
       }
       add('Кабель ${g.cableType}', 'м', 10);
@@ -593,5 +795,3 @@ class CircuitCalculator {
     return map.values.toList();
   }
 }
-
-enum _GroupKind { lighting, sockets, powerful, other }

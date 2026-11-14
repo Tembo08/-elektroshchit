@@ -1,5 +1,9 @@
-# Сечения медного кабеля ВВГнг-LS (ориентиры по ПУЭ / СП 256)
+# Сечения медного кабеля ВВГнг-LS (ориентиры: ПУЭ, СП 256)
 # version: ru_2026
+#
+# Значения для нормальных условий (одиночный кабель, +25 °C). При прокладке
+# пучком в стене/лотке и повышенной температуре — брать сечение на шаг больше.
+# Для вводов до 63 А рекомендуется 16 мм².
 
 cable_type_default: "ВВГнг-LS"
 
@@ -34,8 +38,30 @@ sections:
     cores: 3
     description: "ВВГнг-LS 3×10"
 
-# Минимальные сечения по типу нагрузки
+  - section_mm2: 16.0
+    max_current_a: 70
+    typical_use: "Ввод 63 А, трёхфазный ввод"
+    cores: 3
+    description: "ВВГнг-LS 3×16"
+
+  - section_mm2: 25.0
+    max_current_a: 95
+    typical_use: "Ввод 80–100 А"
+    cores: 3
+    description: "ВВГнг-LS 3×25"
+
+  - section_mm2: 35.0
+    max_current_a: 120
+    typical_use: "Ввод большой мощности"
+    cores: 3
+    description: "ВВГнг-LS 3×35"
+
+# Минимальные сечения по типу нагрузки.
+# heavy_* — правило для мощных приборов: от heavy_load_kw сечение не меньше
+# heavy_min_section (практика: варочная/бойлер/зарядка EV).
 min_section_by_load:
   lighting: 1.5
   sockets: 2.5
-  powerful: 4.0
+  powerful: 2.5
+  heavy_load_kw: 3.5
+  heavy_min_section: 4.0

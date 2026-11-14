@@ -1,5 +1,4 @@
 import 'input_config_screen.dart';
-import 'lines_config_screen.dart';
 import 'room_wizard_screen.dart';
 
 import 'package:flutter/material.dart';
@@ -51,38 +50,6 @@ class RoomsFlowScreen extends StatefulWidget {
 
 class _RoomsFlowScreenState extends State<RoomsFlowScreen> {
   final List<RoomDraft> _rooms = [];
-  int _id = 1;
-
-  String _typeLabel(core.RoomType t) {
-    switch (t) {
-      case core.RoomType.kitchen:
-        return 'Кухня';
-      case core.RoomType.livingRoom:
-        return 'Гостиная';
-      case core.RoomType.bedroom:
-        return 'Спальня';
-      case core.RoomType.childrenRoom:
-        return 'Детская';
-      case core.RoomType.bathroom:
-        return 'Ванная';
-      case core.RoomType.toilet:
-        return 'Туалет';
-      case core.RoomType.combinedBathroom:
-        return 'С/у совмещённый';
-      case core.RoomType.hallway:
-        return 'Коридор';
-      case core.RoomType.entrance:
-        return 'Прихожая';
-      case core.RoomType.pantry:
-        return 'Кладовая';
-      case core.RoomType.balcony:
-        return 'Балкон';
-      case core.RoomType.technical:
-        return 'Котельная';
-      case core.RoomType.other:
-        return 'Другое';
-    }
-  }
 
   Future<void> _addRoom() async {
     final draft = await Navigator.of(context).push<RoomDraft>(

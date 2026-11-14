@@ -185,8 +185,13 @@ class _OverviewScreenState extends State<OverviewScreen> {
       case core.ConsumerType.washingMachine:
       case core.ConsumerType.dishwasher:
       case core.ConsumerType.waterHeater:
-      case core.ConsumerType.boiler:
         return 2.0;
+      case core.ConsumerType.boiler:
+        // Электрокотёл 9 кВт — типовой для дома; в визарде мощность не вводится.
+        return 9.0;
+      case core.ConsumerType.evCharger:
+        // Однофазная зарядка 7 кВт (32 А) — типовой минимум.
+        return 7.0;
       case core.ConsumerType.airConditioner:
         return 2.5;
       case core.ConsumerType.underfloorHeating:

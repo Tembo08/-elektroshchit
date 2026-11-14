@@ -175,7 +175,7 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
           const Text('Тип', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
           const SizedBox(height: 8),
           DropdownButtonFormField<core.RoomType>(
-            value: _type,
+            initialValue: _type,
             decoration: const InputDecoration(border: OutlineInputBorder()),
             items: core.RoomType.values
                 .map((t) => DropdownMenuItem(value: t, child: Text(_typeLabel(t))))

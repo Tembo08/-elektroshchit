@@ -11,6 +11,10 @@ class Consumer {
   final bool requiresRcd;
   final String? note;
 
+  /// Сколько фаз питает прибор: 1 — однофазный (по умолчанию), 3 — трёхфазный.
+  /// Для трёхфазного автомат трёхполюсный, ток считается по 230·√3.
+  final int phases;
+
   const Consumer({
     required this.id,
     required this.type,
@@ -20,6 +24,7 @@ class Consumer {
     this.isPowerful = false,
     this.requiresRcd = false,
     this.note,
+    this.phases = 1,
   });
 
   Consumer copyWith({
@@ -31,6 +36,7 @@ class Consumer {
     bool? isPowerful,
     bool? requiresRcd,
     String? note,
+    int? phases,
   }) {
     return Consumer(
       id: id ?? this.id,
@@ -41,6 +47,7 @@ class Consumer {
       isPowerful: isPowerful ?? this.isPowerful,
       requiresRcd: requiresRcd ?? this.requiresRcd,
       note: note ?? this.note,
+      phases: phases ?? this.phases,
     );
   }
 }
