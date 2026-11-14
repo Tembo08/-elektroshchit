@@ -158,6 +158,41 @@ void main() {
       );
     });
 
+    test('линии собираются по комнатам, а не вперемешку', () {
+      final r = calc.calculate(
+        project(rooms: [
+          room('Кухня', RoomType.kitchen, [c('k', ConsumerType.socket, qty: 8)]),
+          room('Зал', RoomType.livingRoom, [c('z', ConsumerType.socket, qty: 8)]),
+        ]),
+        socketLines: 1,
+        lightingLines: 1,
+      );
+      final sockets = r.groups.where((g) => g.name.contains('Розетки')).toList();
+      expect(sockets.length, 2);
+      // Каждая линия — из одной комнаты: id вида k#i или z#i, не смесь.
+      for (final g in sockets) {
+        final prefixes = g.consumerIds.map((id) => id.split('#').first).toSet();
+        expect(prefixes.length, 1, reason: '${g.name} смешала комнаты: $prefixes');
+        expect(g.consumerIds.length, 8);
+      }
+    });
+
+    test('9 точек на 3 линии делятся равномерно (3+3+3, а не 7+1+1)', () {
+      final r = calc.calculate(
+        project(rooms: [
+          room('Зал', RoomType.livingRoom, [c('s', ConsumerType.socket, qty: 9)]),
+        ]),
+        socketLines: 3,
+        lightingLines: 1,
+      );
+      final sizes = r.groups
+          .where((g) => g.name.contains('Розетки'))
+          .map((g) => g.consumerIds.length)
+          .toList()
+        ..sort();
+      expect(sizes, [3, 3, 3]);
+    });
+
     test('аномально мощная розетка даёт предупреждение о перегрузе', () {
       final r = calc.calculate(
         project(rooms: [

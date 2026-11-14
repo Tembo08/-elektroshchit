@@ -29,7 +29,11 @@ class _Unit {
   final String label;
   final double powerKw;
 
-  const _Unit(this.source, this.label, this.powerKw);
+  /// Порядок комнаты: линии собираем «по комнатам», чтобы монтажник не тянул
+  /// провода из разных комнат на одну линию.
+  final int roomOrder;
+
+  const _Unit(this.source, this.label, this.powerKw, this.roomOrder);
 }
 
 /// Мощный прибор, которому нужна отдельная линия.
@@ -66,19 +70,20 @@ class CircuitCalculator {
     final socketUnits = <_Unit>[];
     final bathSockets = <_Unit>[];
 
-    for (final room in project.rooms) {
+    for (var roomIndex = 0; roomIndex < project.rooms.length; roomIndex++) {
+      final room = project.rooms[roomIndex];
       final isBath = _isBathroom(room.type);
       for (final c in room.consumers) {
         final typeName = c.type.name;
         if (c.isPowerful || norms.powerfulTypes.contains(typeName)) {
           powerLines.add(_PowerLine(room, c));
         } else if (norms.lightingTypes.contains(typeName)) {
-          lightingUnits.addAll(_expand(c));
+          lightingUnits.addAll(_expand(c, roomIndex));
         } else if (norms.socketTypes.contains(typeName)) {
           if (isBath) {
-            bathSockets.addAll(_expand(c));
+            bathSockets.addAll(_expand(c, roomIndex));
           } else {
-            socketUnits.addAll(_expand(c));
+            socketUnits.addAll(_expand(c, roomIndex));
           }
         } else if (typeName.startsWith('switch')) {
           // выключатель — не нагрузка щита
@@ -574,19 +579,27 @@ class CircuitCalculator {
     required int minLines,
   }) {
     if (units.isEmpty) return [];
+    // Сначала по комнатам (для монтажа), внутри комнаты — от мощных к слабым.
     final sorted = [...units]
-      ..sort((a, b) => b.powerKw.compareTo(a.powerKw));
+      ..sort((a, b) {
+        final byRoom = a.roomOrder.compareTo(b.roomOrder);
+        if (byRoom != 0) return byRoom;
+        return b.powerKw.compareTo(a.powerKw);
+      });
     final buckets = <List<_Unit>>[];
 
     for (final u in sorted) {
+      // Кладём в первую подходящую линию, но не смешиваем комнаты:
+      // линия продолжается, только если она того же помещения.
       List<_Unit>? target;
       for (final b in buckets) {
+        final sameRoom =
+            b.isEmpty || b.last.roomOrder == u.roomOrder;
+        if (!sameRoom) continue;
         final power = b.fold<double>(0, (s, x) => s + x.powerKw);
         if (b.length < maxUnits && power + u.powerKw <= maxPowerKw + 0.001) {
-          if (target == null ||
-              power < target.fold<double>(0, (s, x) => s + x.powerKw)) {
-            target = b;
-          }
+          target = b;
+          break;
         }
       }
       if (target != null) {
@@ -597,14 +610,23 @@ class CircuitCalculator {
     }
 
     // Пользователь может попросить больше линий (например, свет по зонам).
+    // Делим самую большую линию на равные части — 9 точек и 3 линии дают
+    // 3+3+3, а не 7+1+1.
     final wanted = math.max(1, minLines);
     while (buckets.length < wanted && sorted.length >= wanted) {
-      final donor = buckets
-          .where((b) => b.length > 1)
-          .fold<List<_Unit>?>(null, (best, b) => best == null || b.length > best.length ? b : best);
-      if (donor == null) break;
-      final moved = donor.removeAt(donor.length - 1);
-      buckets.add([moved]);
+      final donorIndex = buckets.indexWhere((b) => b.length > 1);
+      if (donorIndex < 0) break;
+      final donor = buckets[donorIndex];
+      final remaining = wanted - buckets.length + 1; // сколько частей нарезать
+      final parts = math.min(remaining, donor.length);
+      if (parts <= 1) break;
+      final size = (donor.length / parts).ceil();
+      final chunks = <List<_Unit>>[];
+      for (var i = 0; i < donor.length; i += size) {
+        chunks.add(donor.sublist(i, math.min(i + size, donor.length)));
+      }
+      buckets.removeAt(donorIndex);
+      buckets.addAll(chunks);
     }
 
     return buckets;
@@ -652,13 +674,13 @@ class CircuitCalculator {
     return p * qty;
   }
 
-  List<_Unit> _expand(Consumer c) {
+  List<_Unit> _expand(Consumer c, int roomOrder) {
     if (c.quantity < 1) return const [];
     final qty = c.quantity;
     final p = c.powerKw ?? _defaultPower(c);
     return List.generate(
       qty,
-      (i) => _Unit(c.copyWith(id: '${c.id}#$i'), c.name, p),
+      (i) => _Unit(c.copyWith(id: '${c.id}#$i'), c.name, p, roomOrder),
     );
   }
 
