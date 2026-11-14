@@ -93,6 +93,7 @@ class NormsLoader {
       defaultRcdMa: _intOr(rcdRules['default_rcd_ma'], 30),
       bathRcdMa: _intOr(rcdRules['bath_rcd_ma'], 10),
       fireRcdMa: _intOr(rcdRules['fire_protection_rcd_ma'], 100),
+      maxLinesPerRcd: _intOr(rcdRules['max_lines_per_rcd'], 4),
       fireRcdType: rcdRules['fire_rcd_type']?.toString().toUpperCase() ?? 'S',
       rcdType: rcdRules['rcd_type']?.toString().toUpperCase() ?? 'AC',
       rcdRatings: ratings.isEmpty

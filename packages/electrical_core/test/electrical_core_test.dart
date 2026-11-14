@@ -261,6 +261,18 @@ void main() {
       expect(r.warnings.any((w) => w.contains('меньше тока по ТУ')), isFalse);
     });
 
+    test('15 кВт на одной фазе — автомат 80 А и сечение 25 мм²', () {
+      final r = calc.calculate(
+        project(powerKw: 15, rooms: [
+          room('Зал', RoomType.livingRoom, [c('s', ConsumerType.socket, qty: 6)]),
+        ]),
+      );
+      final input = r.inputGroup!;
+      expect(input.calculatedCurrentA, closeTo(65.2, 0.5));
+      expect(input.breakerAmps, 80);
+      expect(input.cableSectionMm2, greaterThanOrEqualTo(25));
+    });
+
     test('25 кВт на трёх фазах — 5-жильный кабель и сечение под ток', () {
       final r = calc.calculate(
         project(powerKw: 25, phase: PhaseSystem.three, rooms: [
@@ -371,6 +383,30 @@ void main() {
       expect(socketRcd.amps, greaterThanOrEqualTo(childSum));
       expect(socketRcd.poles, 2);
       expect(socketRcd.dinModules, 2);
+    });
+
+    test('много линий — несколько УЗО, а не одно на 100 А', () {
+      final r = calc.calculate(
+        project(powerKw: 20, rooms: [
+          room('Дом', RoomType.livingRoom, [c('s', ConsumerType.socket, qty: 60)]),
+        ]),
+        socketLines: 1,
+      );
+      final rcds = r.panel.protectionDevices
+          .where((d) => d.name.contains('розетки'))
+          .toList();
+      expect(rcds.length, greaterThanOrEqualTo(2));
+      for (final d in rcds) {
+        expect(d.childBreakerIds.length, lessThanOrEqualTo(norms.maxLinesPerRcd));
+        expect(d.amps, lessThanOrEqualTo(100));
+        expect(d.amps, greaterThanOrEqualTo(16 * d.childBreakerIds.length));
+      }
+      // каждая розеточная линия привязана ровно к одному УЗО
+      final socketGroups =
+          r.groups.where((g) => g.name.contains('Розетки')).toList();
+      final parents = socketGroups.map((g) => g.parentRcdId).toSet();
+      expect(parents.length, rcds.length);
+      expect(parents.contains(null), isFalse);
     });
 
     test('трёхфазная система — родительские УЗО четырёхполюсные', () {

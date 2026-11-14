@@ -210,6 +210,36 @@ class CircuitCalculator {
       ));
     }
 
+    // Не вешаем больше N линий на одно УЗО 30 мА: иначе номинала не хватает,
+    // а суммарная утечка даёт ложные отключения. Делим на несколько УЗО.
+    _limitRcdChildren(
+      groups,
+      devices,
+      idPrefix: 'rcd_sock_',
+      baseName: 'УЗО ${norms.defaultRcdMa} мА (розетки)',
+      rcdMa: norms.defaultRcdMa,
+      maxLines: norms.maxLinesPerRcd,
+      threePhase: project.phaseSystem == PhaseSystem.three,
+    );
+    _limitRcdChildren(
+      groups,
+      devices,
+      idPrefix: 'rcd_light_',
+      baseName: 'УЗО ${norms.defaultRcdMa} мА (освещение)',
+      rcdMa: norms.defaultRcdMa,
+      maxLines: norms.maxLinesPerRcd,
+      threePhase: project.phaseSystem == PhaseSystem.three,
+    );
+    _limitRcdChildren(
+      groups,
+      devices,
+      idPrefix: 'rcd_bath_',
+      baseName: 'УЗО ${norms.bathRcdMa} мА (санузел)',
+      rcdMa: norms.bathRcdMa,
+      maxLines: norms.maxLinesPerRcd,
+      threePhase: project.phaseSystem == PhaseSystem.three,
+    );
+
     // --- 5) Мощные приборы и «прочее» — отдельная линия на прибор ---
     for (final line in [...powerLines, ...otherLines]) {
       groups.add(_powerfulGroup(
@@ -630,6 +660,53 @@ class CircuitCalculator {
     }
 
     return buckets;
+  }
+
+  /// Если под одним УЗО больше [maxLines] линий — делим на несколько
+  /// аппаратов и переносим id родителя у групп.
+  void _limitRcdChildren(
+    List<CircuitGroup> groups,
+    List<ProtectionDevice> devices, {
+    required String idPrefix,
+    required String baseName,
+    required int rcdMa,
+    required int maxLines,
+    required bool threePhase,
+  }) {
+    final index = devices.indexWhere((d) => d.id.startsWith(idPrefix));
+    if (index < 0) return;
+    final dev = devices[index];
+    final childIds = dev.childBreakerIds;
+    if (maxLines <= 0 || childIds.length <= maxLines) return;
+
+    final chunks = <List<String>>[];
+    for (var i = 0; i < childIds.length; i += maxLines) {
+      chunks.add(childIds.sublist(i, math.min(i + maxLines, childIds.length)));
+    }
+
+    final replacements = <ProtectionDevice>[];
+    for (var c = 0; c < chunks.length; c++) {
+      final id = '${dev.id}_$c';
+      final suffix = c == 0 ? '' : ' ${c + 1}';
+      final name = '$baseName$suffix';
+      final chunkIds = chunks[c];
+      final amps = <int>[];
+      for (var i = 0; i < groups.length; i++) {
+        if (chunkIds.contains(groups[i].id)) {
+          groups[i] = groups[i].copyWith(parentRcdId: id);
+          amps.add(groups[i].breakerAmps);
+        }
+      }
+      replacements.add(_parentRcd(
+        id: id,
+        name: name,
+        rcdMa: rcdMa,
+        childAmps: amps,
+        childIds: chunkIds,
+        threePhase: threePhase,
+      ));
+    }
+    devices.replaceRange(index, index + 1, replacements);
   }
 
   ProtectionDevice _parentRcd({

@@ -28,6 +28,7 @@ rules:
   bath_rcd_ma: 10                      # практика автора: санузел — 10 мА
   fire_protection_rcd_ma: 100
   fire_rcd_type: "S"                   # селективное, чтобы не отключать всё
+  max_lines_per_rcd: 4                 # больше 4 линий на одно УЗО 30 мА не вешаем
   rcd_type: "AC"
   prefer_differential_breaker: false   # false = автомат + УЗО, true = дифавтомат
 

@@ -71,6 +71,7 @@ class NormsCatalog {
   final List<int> rcdRatings;
   final int bathRcdMa;
   final int fireRcdMa;
+  final int maxLinesPerRcd;
   final String fireRcdType;
   final String rcdType;
 
@@ -101,6 +102,7 @@ class NormsCatalog {
     this.rcdRatings = const [16, 25, 32, 40, 50, 63, 80, 100],
     this.bathRcdMa = 10,
     this.fireRcdMa = 100,
+    this.maxLinesPerRcd = 4,
     this.fireRcdType = 'S',
     this.rcdType = 'AC',
   });
