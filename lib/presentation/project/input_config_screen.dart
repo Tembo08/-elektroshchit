@@ -158,10 +158,14 @@ class _InputConfigScreenState extends ConsumerState<InputConfigScreen> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Не норма ПУЭ. Укажите цифру из договора или технических условий '
             'на присоединение. Ниже — только пример для старта.',
-            style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.35),
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
           ),
           const SizedBox(height: 10),
           TextField(
@@ -184,7 +188,7 @@ class _InputConfigScreenState extends ConsumerState<InputConfigScreen> {
           ),
           const SizedBox(height: 20),
           Card(
-            color: const Color(0xFF007AFF).withValues(alpha: 0.08),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(
@@ -227,10 +231,14 @@ class _InputConfigScreenState extends ConsumerState<InputConfigScreen> {
             }).toList(),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Номинал вводного автомата — черновой ориентир. '
             'Итоговую схему проверяет квалифицированный электрик.',
-            style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.35),
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
           ),
           const SizedBox(height: 16),
           const TipCard(screen: TipScreen.input),

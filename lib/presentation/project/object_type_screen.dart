@@ -106,10 +106,11 @@ class _ObjectTypeScreenState extends ConsumerState<ObjectTypeScreen> {
     required bool selected,
     required VoidCallback onTap,
   }) {
+    final scheme = Theme.of(context).colorScheme;
     return Material(
       color: selected
-          ? const Color(0xFF007AFF).withValues(alpha: 0.12)
-          : Colors.white,
+          ? scheme.primary.withValues(alpha: 0.14)
+          : scheme.surfaceContainerHigh,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -119,7 +120,7 @@ class _ObjectTypeScreenState extends ConsumerState<ObjectTypeScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: selected ? const Color(0xFF007AFF) : Colors.black12,
+              color: selected ? scheme.primary : scheme.outlineVariant,
               width: selected ? 2 : 1,
             ),
           ),

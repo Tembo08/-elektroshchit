@@ -299,11 +299,14 @@ class ResultScreen extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final hasWarning = g.warnings.isNotEmpty;
     final dotColor = hasWarning ? AppColors.warn : AppColors.ok;
-    final rcd = g.isDifferentialBreaker
-        ? 'диф ${g.breakerAmps}/${g.rcdMa} мА'
-        : (g.hasRcd && g.rcdMa != null
-            ? 'УЗО ${g.rcdMa} мА${g.rcdType == null ? "" : " ${g.rcdType}"}'
-            : '—');
+    String? rcd;
+    if (g.isDifferentialBreaker) {
+      rcd = 'диф ${g.breakerAmps} А / ${g.rcdMa} мА';
+    } else if (g.hasRcd && g.rcdMa != null) {
+      rcd = 'УЗО ${g.rcdMa} мА${g.rcdType == null ? "" : " ${g.rcdType}"}';
+    }
+    final number = RegExp(r'^Гр\. (\d+)').firstMatch(g.name)?.group(1);
+    final label = g.name.replaceFirst(RegExp(r'^Гр\. \d+ — '), '');
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -325,7 +328,7 @@ class ResultScreen extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    g.name.replaceFirst('Гр. ', ''),
+                    label,
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -346,10 +349,11 @@ class ResultScreen extends StatelessWidget {
               spacing: 8,
               runSpacing: 6,
               children: [
+                if (number != null) _badge(context, 'Гр. $number'),
                 _badge(context, '${g.calculatedCurrentA.toStringAsFixed(1)} А'),
                 _badge(context, 'авт ${g.breakerAmps} А'),
                 _badge(context, g.cableType),
-                _badge(context, rcd),
+                if (rcd != null) _badge(context, rcd),
                 _badge(context, '${g.dinModules} DIN'),
                 if (g.phase != null) _badge(context, g.phase!),
               ],

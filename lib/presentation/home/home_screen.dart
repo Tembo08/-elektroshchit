@@ -23,7 +23,11 @@ class HomeScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Spacer(),
-                const Icon(Icons.electrical_services, size: 64, color: Color(0xFF007AFF)),
+                Icon(
+                  Icons.electrical_services,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(height: 20),
                 const Text(
                   'Электрощит',
@@ -31,10 +35,13 @@ class HomeScreen extends ConsumerWidget {
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 10),
-                const Text(
+                Text(
                   'Черновик щитка для квартиры и дома',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, color: Colors.black54),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const Spacer(),
                 FilledButton(

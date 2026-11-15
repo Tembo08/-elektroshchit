@@ -769,7 +769,7 @@ class CircuitCalculator {
     return ProtectionDevice(
       id: id,
       kind: ProtectionKind.rcd,
-      name: '$name $amps А',
+      name: name,
       amps: amps,
       rcdMa: rcdMa,
       dinModules: poles,
@@ -933,7 +933,12 @@ class CircuitCalculator {
     add('Кабель ввода ${input.cableType}', 'м', 15);
 
     for (final d in devices) {
-      add('${d.name}, ${d.poles}P', 'шт', 1);
+      add(
+        '${d.name} ${d.amps} А / ${d.rcdMa} мА, ${d.poles}P'
+        '${d.rcdType == null ? "" : " тип ${d.rcdType}"}',
+        'шт',
+        1,
+      );
     }
 
     for (final g in groups) {

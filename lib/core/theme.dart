@@ -45,7 +45,7 @@ ThemeData _decorate(ThemeData base, Color scaffold, Color card) {
       elevation: 0,
       backgroundColor: scaffold,
       foregroundColor: scheme.onSurface,
-      titleTextStyle: TextStyle(
+      titleTextStyle: base.textTheme.titleLarge?.copyWith(
         fontSize: 20,
         fontWeight: FontWeight.w700,
         color: scheme.onSurface,
@@ -62,7 +62,11 @@ ThemeData _decorate(ThemeData base, Color scaffold, Color card) {
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        textStyle: base.textTheme.labelLarge?.copyWith(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: scheme.onPrimary,
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     ),

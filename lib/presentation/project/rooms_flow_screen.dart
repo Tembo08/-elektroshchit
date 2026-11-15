@@ -47,9 +47,12 @@ class RoomsFlowScreen extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
+                  Text(
                     'Пока ни одной комнаты',
-                    style: TextStyle(fontSize: 17, color: Colors.black54),
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   FilledButton.icon(
@@ -103,7 +106,8 @@ class RoomsFlowScreen extends ConsumerWidget {
             ),
           ),
           const Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+            // отступ справа/снизу, чтобы FAB не перекрывал подсказку
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 84),
             child: TipCard(screen: TipScreen.rooms),
           ),
         ],

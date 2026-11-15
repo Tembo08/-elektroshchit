@@ -144,24 +144,29 @@ class OverviewScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(projectDraftProvider);
     final rooms = draft.rooms;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Обзор')),
       body: rooms.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
                 'Добавьте хотя бы одну комнату',
-                style: TextStyle(fontSize: 16, color: Colors.black54),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             )
           : GridView.builder(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
               gridDelegate:
                   const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 260,
+                maxCrossAxisExtent: 280,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
-                childAspectRatio: 1.05,
+                // Фиксированная высота: карточки компактные, без пустоты снизу.
+                mainAxisExtent: 152,
               ),
               itemCount: rooms.length,
               itemBuilder: (context, i) {
@@ -171,9 +176,9 @@ class OverviewScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(14),
                   child: Ink(
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: scheme.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.black12),
+                      border: Border.all(color: scheme.outlineVariant),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(12),
@@ -205,17 +210,17 @@ class OverviewScreen extends ConsumerWidget {
                           if (r.dedicatedCount > 0)
                             Text(
                               'Силовые: ${r.dedicatedCount}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14,
-                                color: Colors.black54,
+                                color: scheme.onSurfaceVariant,
                               ),
                             ),
                           const Spacer(),
                           Text(
                             'ТУ: ${draft.allowedPowerKw > 0 ? "${draft.allowedPowerKw.toStringAsFixed(0)} кВт" : "не задано"}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
-                              color: Colors.black54,
+                              color: scheme.onSurfaceVariant,
                             ),
                           ),
                         ],

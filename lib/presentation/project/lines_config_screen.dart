@@ -58,6 +58,7 @@ class _LinesConfigScreenState extends ConsumerState<LinesConfigScreen> {
   }
 
   Widget _stepper({
+    required BuildContext context,
     required String title,
     required String subtitle,
     required int value,
@@ -84,9 +85,9 @@ class _LinesConfigScreenState extends ConsumerState<LinesConfigScreen> {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
-                      color: Colors.black54,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -129,10 +130,14 @@ class _LinesConfigScreenState extends ConsumerState<LinesConfigScreen> {
           Text(
             'Розеток обычных: $_normalSockets · Силовых приборов: '
             '$_dedicatedCount · Светильников: $_lights',
-            style: const TextStyle(fontSize: 15, color: Colors.black54),
+            style: TextStyle(
+              fontSize: 15,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 16),
           _stepper(
+            context: context,
             title: 'Линии освещения',
             subtitle: 'На всю квартиру / дом (не по комнатам)',
             value: _lightingLines,
@@ -143,6 +148,7 @@ class _LinesConfigScreenState extends ConsumerState<LinesConfigScreen> {
           ),
           const SizedBox(height: 12),
           _stepper(
+            context: context,
             title: 'Линии розеток',
             subtitle: 'Только обычные розетки. Силовые — всегда отдельно.',
             value: _socketLines,
@@ -152,10 +158,14 @@ class _LinesConfigScreenState extends ConsumerState<LinesConfigScreen> {
             }),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'Варочная, бойлер, котёл, стиралка, посудомойка, кондиционер, '
             'тёплый пол — отдельные линии, их число задавать не нужно.',
-            style: TextStyle(fontSize: 14, color: Colors.black54, height: 1.35),
+            style: TextStyle(
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
           ),
           const SizedBox(height: 16),
           const TipCard(screen: TipScreen.lines),
