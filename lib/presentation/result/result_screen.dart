@@ -32,8 +32,10 @@ class ResultScreen extends StatelessWidget {
           IconButton(
             tooltip: 'На главную',
             icon: const Icon(Icons.home_outlined),
-            onPressed: () =>
-                Navigator.of(context).popUntil((route) => route.isFirst),
+            onPressed: () {
+              ScaffoldMessenger.of(context).clearSnackBars();
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            },
           ),
         ],
       ),

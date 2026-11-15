@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:elektroshchit/core/project_draft.dart';
+import 'package:elektroshchit/core/providers.dart';
+import 'package:elektroshchit/presentation/home/home_screen.dart';
 import 'package:elektroshchit/main.dart';
 import 'package:elektroshchit/core/template_mapper.dart';
 import 'package:elektroshchit/presentation/checklist/checklist_screen.dart';
@@ -378,5 +380,89 @@ void main() {
     await tester.tap(find.text('Сверить ТУ'));
     await tester.pumpAndSettle();
     expect(find.text('Пройдено 1 из 12'), findsOneWidget);
+  });
+
+  testWidgets('удаление комнаты: «Вернуть» не переезжает на другие экраны',
+      (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(projectDraftProvider.notifier);
+    notifier.startProject(ObjectType.apartment, PhaseSystem.single);
+    notifier.addRoom(const RoomDraft(
+      id: 'r1',
+      name: 'Кухня',
+      type: RoomType.kitchen,
+      socketsNormal: 4,
+    ));
+    notifier.addRoom(const RoomDraft(
+      id: 'r2',
+      name: 'Зал',
+      type: RoomType.livingRoom,
+      socketsNormal: 4,
+    ));
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(home: RoomsFlowScreen(norms: norms)),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Удалить комнату').first);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Комната «Кухня» удалена'), findsOneWidget);
+
+    await tester.tap(find.text('Вернуть'));
+    await tester.pumpAndSettle();
+    expect(container.read(projectDraftProvider).rooms.length, 2);
+    expect(find.textContaining('удалена'), findsNothing);
+
+    await tester.tap(find.byTooltip('Удалить комнату').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Далее'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('удалена'), findsNothing,
+        reason: 'плашка не должна всплывать на других экранах');
+  });
+
+  testWidgets('новый проект начинается с чистого черновика', (tester) async {
+    final container = ProviderContainer(
+      overrides: [normsProvider.overrideWith((ref) async => norms)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(projectDraftProvider.notifier);
+    notifier.startProject(ObjectType.apartment, PhaseSystem.single);
+    notifier.addRoom(const RoomDraft(
+      id: 'r1',
+      name: 'Гостиная',
+      type: RoomType.livingRoom,
+      socketsNormal: 4,
+    ));
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Начать проект'));
+    await tester.pumpAndSettle();
+    expect(find.text('Начать новый проект?'), findsOneWidget);
+
+    await tester.tap(find.text('Начать новый'));
+    await tester.pumpAndSettle();
+
+    expect(container.read(projectDraftProvider).rooms, isEmpty,
+        reason: 'старые комнаты должны быть очищены');
+    if (find.text('Квартира').evaluate().isNotEmpty) {
+      await tester.tap(find.text('Квартира'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Далее'));
+      await tester.pumpAndSettle();
+      expect(find.text('Пока ни одной комнаты'), findsOneWidget);
+    }
   });
 }
