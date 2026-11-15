@@ -1,109 +1,103 @@
+import 'package:electrical_core/electrical_core.dart' as core;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/project_draft.dart';
 import 'input_config_screen.dart';
 import 'room_wizard_screen.dart';
 
-import 'package:flutter/material.dart';
-import 'package:electrical_core/electrical_core.dart' as core;
-
-/// Черновик комнаты в новом потоке
-class RoomDraft {
-  final String id;
-  final String name;
-  final core.RoomType type;
-  final int socketsNormal;
-  final int lights;
-  final int switches;
-  final int mirrorSockets;
-  final Map<core.ConsumerType, int> dedicatedSockets;
-
-  const RoomDraft({
-    required this.id,
-    required this.name,
-    required this.type,
-    this.socketsNormal = 0,
-    this.lights = 0,
-    this.switches = 0,
-    this.mirrorSockets = 0,
-    this.dedicatedSockets = const {},
-  });
-
-  int get totalSockets {
-    final dedicated = dedicatedSockets.values.fold(0, (a, b) => a + b);
-    return socketsNormal + dedicated + mirrorSockets;
-  }
-}
-
-class RoomsFlowScreen extends StatefulWidget {
+class RoomsFlowScreen extends ConsumerWidget {
   final core.NormsCatalog norms;
-  final core.ObjectType objectType;
-  final core.PhaseSystem phaseSystem;
 
-  const RoomsFlowScreen({
-    super.key,
-    required this.norms,
-    required this.objectType,
-    required this.phaseSystem,
-  });
+  const RoomsFlowScreen({super.key, required this.norms});
 
-  @override
-  State<RoomsFlowScreen> createState() => _RoomsFlowScreenState();
-}
-
-class _RoomsFlowScreenState extends State<RoomsFlowScreen> {
-  final List<RoomDraft> _rooms = [];
-
-  Future<void> _addRoom() async {
+  Future<void> _addRoom(BuildContext context, WidgetRef ref) async {
     final draft = await Navigator.of(context).push<RoomDraft>(
-      MaterialPageRoute(builder: (_) => const RoomWizardScreen()),
+      MaterialPageRoute(builder: (_) => RoomWizardScreen(norms: norms)),
     );
     if (draft == null) return;
-    setState(() => _rooms.add(draft));
+    ref.read(projectDraftProvider.notifier).addRoom(draft);
+  }
+
+  Future<void> _editRoom(
+    BuildContext context,
+    WidgetRef ref,
+    RoomDraft room,
+  ) async {
+    final updated = await Navigator.of(context).push<RoomDraft>(
+      MaterialPageRoute(builder: (_) => RoomWizardScreen(norms: norms, existing: room)),
+    );
+    if (updated == null) return;
+    ref.read(projectDraftProvider.notifier).updateRoom(updated);
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rooms = ref.watch(projectDraftProvider).rooms;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Комнаты')),
-      body: _rooms.isEmpty
-          ? const Center(
-              child: Text(
-                'Добавьте комнаты',
-                style: TextStyle(fontSize: 16, color: Colors.black54),
+      body: rooms.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Пока ни одной комнаты',
+                    style: TextStyle(fontSize: 17, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: () => _addRoom(context, ref),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Добавить комнату'),
+                  ),
+                ],
               ),
             )
           : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _rooms.length,
+              // Отступ снизу, чтобы FAB не перекрывал последнюю карточку.
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+              itemCount: rooms.length,
               itemBuilder: (context, i) {
-                final r = _rooms[i];
+                final r = rooms[i];
                 return Card(
                   child: ListTile(
                     title: Text(r.name, style: const TextStyle(fontSize: 17)),
                     subtitle: Text(
                       'Розетки: ${r.totalSockets} · Лампы: ${r.lights} · '
-                      'Выключатели: ${r.switches}',
+                      'Выключатели: ${r.switches}'
+                      '${r.dedicatedCount > 0 ? " · Силовые: ${r.dedicatedCount}" : ""}',
                       style: const TextStyle(fontSize: 15),
                     ),
-                    onTap: () async {
-                      final updated = await Navigator.of(context)
-                          .push<RoomDraft>(
-                            MaterialPageRoute(
-                              builder: (_) => RoomWizardScreen(existing: r),
-                            ),
-                          );
-                      if (updated != null) {
-                        setState(() => _rooms[i] = updated);
-                      }
-                    },
+                    onTap: () => _editRoom(context, ref, r),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete_outline),
-                      onPressed: () => setState(() => _rooms.removeAt(i)),
+                      tooltip: 'Удалить комнату',
+                      onPressed: () {
+                        final messenger = ScaffoldMessenger.of(context);
+                        ref
+                            .read(projectDraftProvider.notifier)
+                            .removeRoom(r.id);
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text('Комната «${r.name}» удалена'),
+                            action: SnackBarAction(
+                              label: 'Вернуть',
+                              onPressed: () => ref
+                                  .read(projectDraftProvider.notifier)
+                                  .addRoom(r),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 );
               },
             ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addRoom,
+        onPressed: () => _addRoom(context, ref),
         icon: const Icon(Icons.add),
         label: const Text('Комната'),
       ),
@@ -111,17 +105,12 @@ class _RoomsFlowScreenState extends State<RoomsFlowScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: FilledButton(
-            onPressed: _rooms.isEmpty
+            onPressed: rooms.isEmpty
                 ? null
                 : () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => InputConfigScreen(
-                          norms: widget.norms,
-                          objectType: widget.objectType,
-                          phaseSystem: widget.phaseSystem,
-                          rooms: List.of(_rooms),
-                        ),
+                        builder: (_) => InputConfigScreen(norms: norms),
                       ),
                     );
                   },

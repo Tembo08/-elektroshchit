@@ -1,51 +1,58 @@
-import 'package:flutter/material.dart';
 import 'package:electrical_core/electrical_core.dart' as core;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'rooms_flow_screen.dart';
+import '../../core/project_draft.dart';
 import 'overview_screen.dart';
 
-class LinesConfigScreen extends StatefulWidget {
+class LinesConfigScreen extends ConsumerStatefulWidget {
   final core.NormsCatalog norms;
-  final core.ObjectType objectType;
-  final core.PhaseSystem phaseSystem;
-  final List<RoomDraft> rooms;
-  final double allowedPowerKw;
-  final int inputBreakerAmps;
 
-  const LinesConfigScreen({
-    super.key,
-    required this.norms,
-    required this.objectType,
-    required this.phaseSystem,
-    required this.rooms,
-    required this.allowedPowerKw,
-    required this.inputBreakerAmps,
-  });
+  const LinesConfigScreen({super.key, required this.norms});
 
   @override
-  State<LinesConfigScreen> createState() => _LinesConfigScreenState();
+  ConsumerState<LinesConfigScreen> createState() => _LinesConfigScreenState();
 }
 
-class _LinesConfigScreenState extends State<LinesConfigScreen> {
-  int _lightingLines = 2;
-  int _socketLines = 2;
+class _LinesConfigScreenState extends ConsumerState<LinesConfigScreen> {
+  late int _lightingLines;
+  late int _socketLines;
+
+  @override
+  void initState() {
+    super.initState();
+    final draft = ref.read(projectDraftProvider);
+    _lightingLines = draft.lightingLines;
+    _socketLines = draft.socketLines;
+  }
 
   int get _dedicatedCount {
     var n = 0;
-    for (final r in widget.rooms) {
-      for (final q in r.dedicatedSockets.values) {
-        n += q;
-      }
+    for (final r in ref.read(projectDraftProvider).rooms) {
+      n += r.dedicatedCount;
     }
     return n;
   }
 
   int get _normalSockets {
-    return widget.rooms.fold(0, (s, r) => s + r.socketsNormal);
+    return ref
+        .read(projectDraftProvider)
+        .rooms
+        .fold<int>(0, (s, r) => s + r.socketsNormal);
   }
 
   int get _lights {
-    return widget.rooms.fold(0, (s, r) => s + r.lights);
+    return ref
+        .read(projectDraftProvider)
+        .rooms
+        .fold<int>(0, (s, r) => s + r.lights);
+  }
+
+  void _save() {
+    ref.read(projectDraftProvider.notifier).setLines(
+          lightingLines: _lightingLines,
+          socketLines: _socketLines,
+        );
   }
 
   Widget _stepper({
@@ -58,26 +65,51 @@ class _LinesConfigScreenState extends State<LinesConfigScreen> {
   }) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Row(
           children: [
-            Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Text(subtitle, style: const TextStyle(fontSize: 14, color: Colors.black54)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                IconButton(
-                  onPressed: value > min ? () => onChanged(value - 1) : null,
-                  icon: const Icon(Icons.remove_circle_outline),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: value > min ? () => onChanged(value - 1) : null,
+              tooltip: 'Уменьшить',
+              icon: const Icon(Icons.remove_circle_outline),
+            ),
+            SizedBox(
+              width: 28,
+              child: Text(
+                '$value',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
                 ),
-                Text('$value', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-                IconButton(
-                  onPressed: value < max ? () => onChanged(value + 1) : null,
-                  icon: const Icon(Icons.add_circle_outline),
-                ),
-              ],
+              ),
+            ),
+            IconButton(
+              onPressed: value < max ? () => onChanged(value + 1) : null,
+              tooltip: 'Увеличить',
+              icon: const Icon(Icons.add_circle_outline),
             ),
           ],
         ),
@@ -90,26 +122,32 @@ class _LinesConfigScreenState extends State<LinesConfigScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Линии')),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         children: [
           Text(
-            'Обычных розеток: $_normalSockets · Ламп: $_lights\n'
-            'Отдельных силовых (стиралка, варочная и т.д.): $_dedicatedCount',
-            style: const TextStyle(fontSize: 15, color: Colors.black54, height: 1.4),
+            'Розеток обычных: $_normalSockets · Силовых приборов: '
+            '$_dedicatedCount · Светильников: $_lights',
+            style: const TextStyle(fontSize: 15, color: Colors.black54),
           ),
           const SizedBox(height: 16),
           _stepper(
             title: 'Линии освещения',
             subtitle: 'На всю квартиру / дом (не по комнатам)',
             value: _lightingLines,
-            onChanged: (v) => setState(() => _lightingLines = v),
+            onChanged: (v) => setState(() {
+              _lightingLines = v;
+              _save();
+            }),
           ),
           const SizedBox(height: 12),
           _stepper(
             title: 'Линии розеток',
             subtitle: 'Только обычные розетки. Силовые — всегда отдельно.',
             value: _socketLines,
-            onChanged: (v) => setState(() => _socketLines = v),
+            onChanged: (v) => setState(() {
+              _socketLines = v;
+              _save();
+            }),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -124,18 +162,10 @@ class _LinesConfigScreenState extends State<LinesConfigScreen> {
           padding: const EdgeInsets.all(16),
           child: FilledButton(
             onPressed: () {
+              _save();
               Navigator.of(context).push(
                 MaterialPageRoute(
-builder: (_) => OverviewScreen(
-                    norms: widget.norms,
-                    objectType: widget.objectType,
-                    phaseSystem: widget.phaseSystem,
-                    rooms: widget.rooms,
-                    lightingLines: _lightingLines,
-                    socketLines: _socketLines,
-                    allowedPowerKw: widget.allowedPowerKw,
-                    inputBreakerAmps: widget.inputBreakerAmps,
-                  ),
+                  builder: (_) => OverviewScreen(norms: widget.norms),
                 ),
               );
             },

@@ -1,28 +1,20 @@
-import 'package:flutter/material.dart';
 import 'package:electrical_core/electrical_core.dart' as core;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'rooms_flow_screen.dart';
+import '../../core/project_draft.dart';
 import 'lines_config_screen.dart';
 
-class InputConfigScreen extends StatefulWidget {
+class InputConfigScreen extends ConsumerStatefulWidget {
   final core.NormsCatalog norms;
-  final core.ObjectType objectType;
-  final core.PhaseSystem phaseSystem;
-  final List<RoomDraft> rooms;
 
-  const InputConfigScreen({
-    super.key,
-    required this.norms,
-    required this.objectType,
-    required this.phaseSystem,
-    required this.rooms,
-  });
+  const InputConfigScreen({super.key, required this.norms});
 
   @override
-  State<InputConfigScreen> createState() => _InputConfigScreenState();
+  ConsumerState<InputConfigScreen> createState() => _InputConfigScreenState();
 }
 
-class _InputConfigScreenState extends State<InputConfigScreen> {
+class _InputConfigScreenState extends ConsumerState<InputConfigScreen> {
   late TextEditingController _tuController;
   late int _recommendedAmps;
   late int _selectedAmps;
@@ -43,12 +35,16 @@ class _InputConfigScreenState extends State<InputConfigScreen> {
   @override
   void initState() {
     super.initState();
-    _tuController = TextEditingController(); // пусто — пользователь вводит сам
-    // Черновая рекомендация до ввода ТУ (от состава комнат)
-    final advice = _advise(0);
+    final draft = ref.read(projectDraftProvider);
+    _tuController = TextEditingController(
+      text: draft.allowedPowerKw > 0
+          ? draft.allowedPowerKw.toStringAsFixed(0)
+          : '',
+    );
+    final advice = _advise(draft.allowedPowerKw);
     _recommendedAmps = advice.$1;
     _reason = advice.$2;
-    _selectedAmps = advice.$1;
+    _selectedAmps = draft.inputBreakerAmps ?? advice.$1;
   }
 
   void _recalc(double tuKw) {
@@ -56,18 +52,25 @@ class _InputConfigScreenState extends State<InputConfigScreen> {
     setState(() {
       _recommendedAmps = advice.$1;
       _reason = advice.$2;
-      _selectedAmps = advice.$1;
+      // Не сбрасываем выбор пользователя, если он уже трогал чипы.
+      if (_selectedAmps != _recommendedAmps && !_userPicked) {
+        _selectedAmps = advice.$1;
+      }
     });
   }
 
+  bool _userPicked = false;
+
   /// (амперы, текст причины)
   (int, String) _advise(double tuKw) {
-    final roomCount = widget.rooms.length;
+    final draft = ref.read(projectDraftProvider);
+    final rooms = draft.rooms;
+    final roomCount = rooms.length;
     var markerCount = 0;
-    for (final r in widget.rooms) {
-      for (final e in r.dedicatedSockets.entries) {
+    for (final r in rooms) {
+      for (final e in r.dedicated.entries) {
         if (_markerTypes.contains(e.key)) {
-          markerCount += e.value;
+          markerCount += e.value.quantity;
         }
       }
     }
@@ -90,12 +93,10 @@ class _InputConfigScreenState extends State<InputConfigScreen> {
     }
 
     // Ток по ТУ
-    final current = widget.phaseSystem == core.PhaseSystem.three
-        ? (tuKw * 1000) / (230 * 1.732)
+    final current = draft.phaseSystem == core.PhaseSystem.three
+        ? (tuKw * 1000) / (3 * 230)
         : (tuKw * 1000) / 230;
 
-    // Не задираем номинал «на всякий случай»: автомат ввода не должен
-    // быть больше, чем позволяет ТУ и вводной кабель.
     var fromTu = _ampsRow.firstWhere((a) => a >= current, orElse: () => 63);
 
     // Подсказка по составу объекта
@@ -131,16 +132,14 @@ class _InputConfigScreenState extends State<InputConfigScreen> {
       return;
     }
 
+    ref.read(projectDraftProvider.notifier).setInput(
+          allowedPowerKw: tu,
+          breakerAmps: _selectedAmps,
+        );
+
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => LinesConfigScreen(
-          norms: widget.norms,
-          objectType: widget.objectType,
-          phaseSystem: widget.phaseSystem,
-          rooms: widget.rooms,
-          allowedPowerKw: tu,
-          inputBreakerAmps: _selectedAmps,
-        ),
+        builder: (_) => LinesConfigScreen(norms: widget.norms),
       ),
     );
   }
@@ -218,7 +217,10 @@ class _InputConfigScreenState extends State<InputConfigScreen> {
               return ChoiceChip(
                 label: Text('$a А'),
                 selected: selected,
-                onSelected: (_) => setState(() => _selectedAmps = a),
+                onSelected: (_) => setState(() {
+                  _selectedAmps = a;
+                  _userPicked = true;
+                }),
               );
             }).toList(),
           ),

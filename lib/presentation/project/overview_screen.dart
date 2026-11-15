@@ -1,61 +1,50 @@
-import 'package:flutter/material.dart';
 import 'package:electrical_core/electrical_core.dart' as core;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'rooms_flow_screen.dart';
-import 'room_wizard_screen.dart';
+import '../../core/project_draft.dart';
 import '../result/result_screen.dart';
+import 'room_wizard_screen.dart';
 
-class OverviewScreen extends StatefulWidget {
+class OverviewScreen extends ConsumerWidget {
   final core.NormsCatalog norms;
-  final core.ObjectType objectType;
-  final core.PhaseSystem phaseSystem;
-  final List<RoomDraft> rooms;
-  final int lightingLines;
-  final int socketLines;
-  final double allowedPowerKw;
-  final int inputBreakerAmps;
 
-  const OverviewScreen({
-    super.key,
-    required this.norms,
-    required this.objectType,
-    required this.phaseSystem,
-    required this.rooms,
-    required this.lightingLines,
-    required this.socketLines,
-    required this.allowedPowerKw,
-    required this.inputBreakerAmps,
-  });
+  const OverviewScreen({super.key, required this.norms});
 
-  @override
-  State<OverviewScreen> createState() => _OverviewScreenState();
-}
-
-class _OverviewScreenState extends State<OverviewScreen> {
-  late List<RoomDraft> _rooms;
-
-  @override
-  void initState() {
-    super.initState();
-    _rooms = List.of(widget.rooms);
-  }
-
-  Future<void> _editRoom(int index) async {
+  Future<void> _editRoom(
+    BuildContext context,
+    WidgetRef ref,
+    RoomDraft room,
+  ) async {
     final updated = await Navigator.of(context).push<RoomDraft>(
       MaterialPageRoute(
-        builder: (_) => RoomWizardScreen(existing: _rooms[index]),
+        builder: (_) => RoomWizardScreen(norms: norms, existing: room),
       ),
     );
-    if (updated != null) {
-      setState(() => _rooms[index] = updated);
-    }
+    if (updated == null) return;
+    ref.read(projectDraftProvider.notifier).updateRoom(updated);
   }
 
-  void _calculate() {
+  String _dedicatedName(core.ConsumerType t) {
+    const m = {
+      core.ConsumerType.washingMachine: 'Стиралка',
+      core.ConsumerType.dishwasher: 'Посудомойка',
+      core.ConsumerType.oven: 'Духовка',
+      core.ConsumerType.electricStove: 'Варочная',
+      core.ConsumerType.waterHeater: 'Бойлер',
+      core.ConsumerType.boiler: 'Котёл',
+      core.ConsumerType.airConditioner: 'Кондиционер',
+      core.ConsumerType.underfloorHeating: 'Тёплый пол',
+      core.ConsumerType.refrigerator: 'Холодильник',
+    };
+    return m[t] ?? t.name;
+  }
+
+  core.Project _buildProject(ProjectDraft draft) {
     final now = DateTime.now();
     var cid = 1;
 
-    final rooms = _rooms.map((d) {
+    final rooms = draft.rooms.map((d) {
       final consumers = <core.Consumer>[];
 
       if (d.socketsNormal > 0) {
@@ -81,17 +70,19 @@ class _OverviewScreenState extends State<OverviewScreen> {
         );
       }
 
-      d.dedicatedSockets.forEach((type, qty) {
-        for (var i = 0; i < qty; i++) {
+      d.dedicated.forEach((type, spec) {
+        for (var i = 0; i < spec.quantity; i++) {
           consumers.add(
             core.Consumer(
               id: 'c_${cid++}',
               type: type,
               name: _dedicatedName(type),
               quantity: 1,
-              powerKw: _defaultPower(type),
+              // null — калькулятор возьмёт типовую мощность из норм.
+              powerKw: spec.powerKw,
               isPowerful: true,
               requiresRcd: true,
+              phases: spec.phases,
             ),
           );
         }
@@ -128,155 +119,135 @@ class _OverviewScreenState extends State<OverviewScreen> {
       );
     }).toList();
 
-    final project = core.Project(
-      id: 'p_${now.millisecondsSinceEpoch}',
-      name: widget.objectType == core.ObjectType.apartment ? 'Квартира' : 'Дом',
-      objectType: widget.objectType,
-      phaseSystem: widget.phaseSystem,
-      allowedPowerKw: widget.allowedPowerKw,
+    final objectType = draft.objectType ?? core.ObjectType.apartment;
+    return core.Project(
+      id: 'p_${now.microsecondsSinceEpoch}',
+      name: objectType == core.ObjectType.apartment ? 'Квартира' : 'Дом',
+      objectType: objectType,
+      phaseSystem: draft.phaseSystem,
+      allowedPowerKw: draft.allowedPowerKw > 0 ? draft.allowedPowerKw : 10,
       groundingSystem: core.GroundingSystem.tnCs,
       totalArea: 50,
       ceilingHeight: 2.7,
-      lightingGrouping: widget.lightingLines <= 1
+      lightingGrouping: draft.lightingLines <= 1
           ? core.LightingGrouping.singleLine
-          : (widget.lightingLines == 2
-                ? core.LightingGrouping.twoZones
-                : core.LightingGrouping.perRoom),
+          : (draft.lightingLines == 2
+              ? core.LightingGrouping.twoZones
+              : core.LightingGrouping.perRoom),
       createdAt: now,
       updatedAt: now,
       rooms: rooms,
     );
-
-    final result = core.CircuitCalculator(widget.norms).calculate(
-      project,
-      inputBreakerAmps: widget.inputBreakerAmps,
-      lightingLines: widget.lightingLines,
-      socketLines: widget.socketLines,
-    );
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ResultScreen(result: result, projectName: project.name),
-      ),
-    );
-  }
-
-  String _dedicatedName(core.ConsumerType t) {
-    const m = {
-      core.ConsumerType.washingMachine: 'Стиралка',
-      core.ConsumerType.dishwasher: 'Посудомойка',
-      core.ConsumerType.oven: 'Духовка',
-      core.ConsumerType.electricStove: 'Варочная',
-      core.ConsumerType.waterHeater: 'Бойлер',
-      core.ConsumerType.boiler: 'Котёл',
-      core.ConsumerType.airConditioner: 'Кондиционер',
-      core.ConsumerType.underfloorHeating: 'Тёплый пол',
-      core.ConsumerType.refrigerator: 'Холодильник',
-    };
-    return m[t] ?? t.name;
-  }
-
-  double _defaultPower(core.ConsumerType t) {
-    switch (t) {
-      case core.ConsumerType.electricStove:
-        return 7.0;
-      case core.ConsumerType.oven:
-        return 3.5;
-      case core.ConsumerType.washingMachine:
-      case core.ConsumerType.dishwasher:
-      case core.ConsumerType.waterHeater:
-        return 2.0;
-      case core.ConsumerType.boiler:
-        // Электрокотёл 9 кВт — типовой для дома; в визарде мощность не вводится.
-        return 9.0;
-      case core.ConsumerType.evCharger:
-        // Однофазная зарядка 7 кВт (32 А) — типовой минимум.
-        return 7.0;
-      case core.ConsumerType.airConditioner:
-        return 2.5;
-      case core.ConsumerType.underfloorHeating:
-        return 1.5;
-      default:
-        return 1.0;
-    }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final draft = ref.watch(projectDraftProvider);
+    final rooms = draft.rooms;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Обзор')),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 1.05,
-        ),
-        itemCount: _rooms.length,
-        itemBuilder: (context, i) {
-          final r = _rooms[i];
-          return InkWell(
-            onTap: () => _editRoom(i),
-            borderRadius: BorderRadius.circular(14),
-            child: Ink(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.black12),
+      body: rooms.isEmpty
+          ? const Center(
+              child: Text(
+                'Добавьте хотя бы одну комнату',
+                style: TextStyle(fontSize: 16, color: Colors.black54),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      r.name,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const Spacer(),
-                    Text(
-                      'Розетки: ${r.totalSockets}',
-                      style: const TextStyle(fontSize: 15),
-                    ),
-                    Text(
-                      'Лампы: ${r.lights}',
-                      style: const TextStyle(fontSize: 15),
-                    ),
-                    Text(
-                      'Выключатели: ${r.switches}',
-                      style: const TextStyle(fontSize: 15),
-                    ),
-                    if (r.mirrorSockets > 0)
-                      Text(
-                        'Зеркало: ${r.mirrorSockets}',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    if (r.dedicatedSockets.isNotEmpty)
-                      Text(
-                        'Силовые: ${r.dedicatedSockets.values.fold(0, (a, b) => a + b)}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black54,
-                        ),
-                      ),
-                  ],
-                ),
+            )
+          : GridView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              gridDelegate:
+                  const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 260,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.05,
               ),
+              itemCount: rooms.length,
+              itemBuilder: (context, i) {
+                final r = rooms[i];
+                return InkWell(
+                  onTap: () => _editRoom(context, ref, r),
+                  borderRadius: BorderRadius.circular(14),
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.black12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            r.name,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Розетки: ${r.totalSockets}',
+                            style: const TextStyle(fontSize: 15),
+                          ),
+                          Text(
+                            'Лампы: ${r.lights}',
+                            style: const TextStyle(fontSize: 15),
+                          ),
+                          Text(
+                            'Выключатели: ${r.switches}',
+                            style: const TextStyle(fontSize: 15),
+                          ),
+                          if (r.dedicatedCount > 0)
+                            Text(
+                              'Силовые: ${r.dedicatedCount}',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          const Spacer(),
+                          Text(
+                            'ТУ: ${draft.allowedPowerKw > 0 ? "${draft.allowedPowerKw.toStringAsFixed(0)} кВт" : "не задано"}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: FilledButton(
-            onPressed: _calculate,
+            onPressed: rooms.isEmpty
+                ? null
+                : () {
+                    final project = _buildProject(draft);
+                    final result = core.CircuitCalculator(norms).calculate(
+                      project,
+                      inputBreakerAmps: draft.inputBreakerAmps,
+                      lightingLines: draft.lightingLines,
+                      socketLines: draft.socketLines,
+                    );
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ResultScreen(
+                          result: result,
+                          projectName: project.name,
+                        ),
+                      ),
+                    );
+                  },
             child: const Text(
               'Рассчитать щиток',
               style: TextStyle(fontSize: 17),

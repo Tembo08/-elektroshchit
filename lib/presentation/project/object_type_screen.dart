@@ -1,20 +1,31 @@
-import 'package:flutter/material.dart';
 import 'package:electrical_core/electrical_core.dart' as core;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/project_draft.dart';
 import 'rooms_flow_screen.dart';
 
-class ObjectTypeScreen extends StatefulWidget {
+class ObjectTypeScreen extends ConsumerStatefulWidget {
   final core.NormsCatalog norms;
 
   const ObjectTypeScreen({super.key, required this.norms});
 
   @override
-  State<ObjectTypeScreen> createState() => _ObjectTypeScreenState();
+  ConsumerState<ObjectTypeScreen> createState() => _ObjectTypeScreenState();
 }
 
-class _ObjectTypeScreenState extends State<ObjectTypeScreen> {
+class _ObjectTypeScreenState extends ConsumerState<ObjectTypeScreen> {
   core.ObjectType? _objectType;
   core.PhaseSystem _phase = core.PhaseSystem.single;
+
+  @override
+  void initState() {
+    super.initState();
+    // Возвращаемся с «назад» — показываем то, что уже выбрано.
+    final draft = ref.read(projectDraftProvider);
+    _objectType = draft.objectType;
+    _phase = draft.phaseSystem;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,13 +46,15 @@ class _ObjectTypeScreenState extends State<ObjectTypeScreen> {
             _choiceCard(
               title: 'Квартира',
               selected: _objectType == core.ObjectType.apartment,
-              onTap: () => setState(() => _objectType = core.ObjectType.apartment),
+              onTap: () =>
+                  setState(() => _objectType = core.ObjectType.apartment),
             ),
             const SizedBox(height: 10),
             _choiceCard(
               title: 'Дом',
               selected: _objectType == core.ObjectType.privateHouse,
-              onTap: () => setState(() => _objectType = core.ObjectType.privateHouse),
+              onTap: () =>
+                  setState(() => _objectType = core.ObjectType.privateHouse),
             ),
             const SizedBox(height: 28),
             const Text(
@@ -49,29 +62,33 @@ class _ObjectTypeScreenState extends State<ObjectTypeScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
-            CheckboxListTile(
-              value: _phase == core.PhaseSystem.single,
-              title: const Text('Одна фаза', style: TextStyle(fontSize: 16)),
-              onChanged: (_) => setState(() => _phase = core.PhaseSystem.single),
-              controlAffinity: ListTileControlAffinity.leading,
-            ),
-            CheckboxListTile(
-              value: _phase == core.PhaseSystem.three,
-              title: const Text('Три фазы', style: TextStyle(fontSize: 16)),
-              onChanged: (_) => setState(() => _phase = core.PhaseSystem.three),
-              controlAffinity: ListTileControlAffinity.leading,
+            SegmentedButton<core.PhaseSystem>(
+              segments: const [
+                ButtonSegment(
+                  value: core.PhaseSystem.single,
+                  label: Text('Одна фаза'),
+                  icon: Icon(Icons.looks_one_outlined),
+                ),
+                ButtonSegment(
+                  value: core.PhaseSystem.three,
+                  label: Text('Три фазы'),
+                  icon: Icon(Icons.looks_3_outlined),
+                ),
+              ],
+              selected: {_phase},
+              onSelectionChanged: (s) => setState(() => _phase = s.first),
             ),
             const Spacer(),
             FilledButton(
               onPressed: canNext
                   ? () {
+                      ref.read(projectDraftProvider.notifier).startProject(
+                            _objectType!,
+                            _phase,
+                          );
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => RoomsFlowScreen(
-                            norms: widget.norms,
-                            objectType: _objectType!,
-                            phaseSystem: _phase,
-                          ),
+                          builder: (_) => RoomsFlowScreen(norms: widget.norms),
                         ),
                       );
                     }
@@ -90,7 +107,9 @@ class _ObjectTypeScreenState extends State<ObjectTypeScreen> {
     required VoidCallback onTap,
   }) {
     return Material(
-      color: selected ? const Color(0xFF007AFF).withValues(alpha: 0.12) : Colors.white,
+      color: selected
+          ? const Color(0xFF007AFF).withValues(alpha: 0.12)
+          : Colors.white,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
