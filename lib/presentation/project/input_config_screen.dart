@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/project_draft.dart';
+import '../../core/tips.dart';
+import '../widgets/tip_card.dart';
 import 'lines_config_screen.dart';
 
 class InputConfigScreen extends ConsumerStatefulWidget {
@@ -230,6 +232,8 @@ class _InputConfigScreenState extends ConsumerState<InputConfigScreen> {
             'Итоговую схему проверяет квалифицированный электрик.',
             style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.35),
           ),
+          const SizedBox(height: 16),
+          const TipCard(screen: TipScreen.input),
         ],
       ),
       bottomNavigationBar: SafeArea(

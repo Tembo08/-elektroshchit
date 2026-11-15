@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/project_draft.dart';
+import '../../core/tips.dart';
+import '../widgets/tip_card.dart';
 import 'overview_screen.dart';
 
 class LinesConfigScreen extends ConsumerStatefulWidget {
@@ -155,6 +157,8 @@ class _LinesConfigScreenState extends ConsumerState<LinesConfigScreen> {
             'тёплый пол — отдельные линии, их число задавать не нужно.',
             style: TextStyle(fontSize: 14, color: Colors.black54, height: 1.35),
           ),
+          const SizedBox(height: 16),
+          const TipCard(screen: TipScreen.lines),
         ],
       ),
       bottomNavigationBar: SafeArea(

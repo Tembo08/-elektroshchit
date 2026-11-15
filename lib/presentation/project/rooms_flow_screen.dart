@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/project_draft.dart';
+import '../../core/tips.dart';
+import '../widgets/tip_card.dart';
 import 'input_config_screen.dart';
 import 'room_wizard_screen.dart';
 
@@ -37,7 +39,10 @@ class RoomsFlowScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Комнаты')),
-      body: rooms.isEmpty
+      body: Column(
+        children: [
+          Expanded(
+            child: rooms.isEmpty
           ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -96,6 +101,13 @@ class RoomsFlowScreen extends ConsumerWidget {
                 );
               },
             ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: TipCard(screen: TipScreen.rooms),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addRoom(context, ref),
         icon: const Icon(Icons.add),

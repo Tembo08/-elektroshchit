@@ -223,8 +223,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // Результат посчитан
-    expect(find.text('Сводка'), findsOneWidget);
+    expect(find.text('Линии'), findsOneWidget);
     expect(find.textContaining('Спецификация'), findsOneWidget);
+    expect(find.text('Ввод достаточен'), findsOneWidget);
 
     // «Назад» до комнат (результат → обзор → линии → ввод → комнаты):
     // данные проекта на месте, раньше они терялись.

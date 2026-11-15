@@ -1,5 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:electrical_core/electrical_core.dart';
+import 'package:flutter/material.dart';
+
+import '../../core/theme.dart';
+import '../../core/tips.dart';
+import '../widgets/tip_card.dart';
 
 class ResultScreen extends StatelessWidget {
   final CalculationResult result;
@@ -15,8 +19,9 @@ class ResultScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final panel = result.panel;
     final input = result.inputGroup;
+    final scheme = Theme.of(context).colorScheme;
     final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
-          fontSize: 22,
+          fontSize: 20,
           fontWeight: FontWeight.w700,
         );
 
@@ -33,25 +38,64 @@ class ResultScreen extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
+          _summaryCard(context, panel, input),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Text('Линии', style: titleStyle),
+              const Spacer(),
+              Text(
+                '${result.groups.length} шт.',
+                style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ..._linesSection(context),
+          const SizedBox(height: 20),
+          Text('Предупреждения', style: titleStyle),
+          const SizedBox(height: 8),
+          if (result.warnings.isEmpty)
+            Text(
+              'Предупреждений нет',
+              style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant),
+            )
+          else
+            ...result.warnings.map((w) => _warningTile(context, w)),
+          const SizedBox(height: 20),
+          Text('Спецификация (черновик)', style: titleStyle),
+          const SizedBox(height: 8),
           Card(
-            color: Colors.orange.shade50,
-            child: const Padding(
-              padding: EdgeInsets.all(14),
+            child: Column(
+              children: [
+                for (var i = 0; i < panel.materials.length; i++) ...[
+                  if (i > 0) const Divider(height: 1, indent: 12, endIndent: 12),
+                  _materialRow(context, panel.materials[i]),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            color: scheme.errorContainer.withValues(alpha: 0.35),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.warning_amber, color: Colors.orange, size: 28),
-                  SizedBox(width: 12),
+                  Icon(Icons.gpp_maybe_outlined, color: scheme.error, size: 24),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Черновик. Требует проверки квалифицированным электриком. '
-                      'Не является проектной документацией.',
+                      'Черновик. Требует проверки квалифицированным '
+                      'электриком. Не является проектной документацией.',
                       style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
+                        fontSize: 14,
                         height: 1.35,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onErrorContainer,
                       ),
                     ),
                   ),
@@ -59,186 +103,327 @@ class ResultScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 20),
-
-          Text('Сводка', style: titleStyle),
-          const SizedBox(height: 10),
-          _infoTile(
-            'Мощность расчётная',
-            '${panel.totalCalculatedPowerKw.toStringAsFixed(2)} кВт',
-          ),
-          _infoTile(
-            'Загрузка ввода',
-            '${(panel.loadFactor * 100).toStringAsFixed(0)}%',
-          ),
-          _infoTile('Ввод достаточен', panel.isInputSufficient ? 'Да' : 'Нет'),
-          _infoTile('DIN-модули', '${panel.totalDinModules}'),
-          _infoTile('Рекомендуемый щит', panel.recommendedPanelSize),
-          const SizedBox(height: 20),
-
-          if (input != null) ...[
-            Text('Ввод', style: titleStyle),
-            const SizedBox(height: 10),
-            _card(
-              title: input.name,
-              body:
-                  'Автомат ${input.breakerAmps}А · ${input.cableType}\n'
-                  'УЗО ${input.rcdMa ?? "—"} мА · DIN: ${input.dinModules}',
-            ),
-            const SizedBox(height: 20),
-          ],
-
-          // УЗО-родители + дочерние автоматы
-          if (panel.protectionDevices.isNotEmpty) ...[
-            Text('УЗО и группы', style: titleStyle),
-            const SizedBox(height: 10),
-            ...panel.protectionDevices.map((d) {
-              final children = result.groups
-                  .where((g) => g.parentRcdId == d.id)
-                  .toList();
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${d.name} · ${d.amps}А · DIN: ${d.dinModules}',
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ...children.map(
-                        (g) => Padding(
-                          padding: const EdgeInsets.only(left: 8, bottom: 8),
-                          child: Text(
-                            '• ${g.name}\n'
-                            '  Автомат ${g.breakerAmps}А · ${g.cableType} · '
-                            'DIN: ${g.dinModules}',
-                            style: const TextStyle(fontSize: 15, height: 1.35),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-            const SizedBox(height: 8),
-          ],
-
-          // Отдельные линии (силовые и без parent)
-          Builder(
-            builder: (context) {
-              final standalone = result.groups
-                  .where((g) => g.parentRcdId == null)
-                  .toList();
-              if (standalone.isEmpty) return const SizedBox.shrink();
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Отдельные линии', style: titleStyle),
-                  const SizedBox(height: 10),
-                  ...standalone.map(
-                    (g) => Card(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              g.name,
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'P=${g.totalPowerKw.toStringAsFixed(2)} кВт · '
-                              'I=${g.calculatedCurrentA.toStringAsFixed(1)} А\n'
-                              '${g.isDifferentialBreaker ? "Дифавтомат ${g.breakerAmps}А / ${g.rcdMa} мА" : "Автомат ${g.breakerAmps}А"}'
-                              '${!g.isDifferentialBreaker && g.hasRcd ? " · УЗО ${g.rcdMa} мА" : ""}'
-                              ' · ${g.cableType}\n'
-                              'DIN: ${g.dinModules}',
-                              style: const TextStyle(fontSize: 15, height: 1.4),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-              );
-            },
-          ),
-
-          Text('Предупреждения', style: titleStyle),
-          const SizedBox(height: 8),
-          ...result.warnings.map(
-            (w) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.info_outline, color: Colors.blue),
-              title: Text(w, style: const TextStyle(fontSize: 15, height: 1.35)),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          Text('Спецификация (черновик)', style: titleStyle),
-          const SizedBox(height: 8),
-          ...panel.materials.map(
-            (m) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(m.name, style: const TextStyle(fontSize: 16)),
-              trailing: Text(
-                '${m.quantity} ${m.unit}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+          const TipCard(screen: TipScreen.result),
         ],
       ),
     );
   }
 
-  Widget _card({required String title, required String body}) {
+  Widget _summaryCard(
+    BuildContext context,
+    PanelResult panel,
+    CircuitGroup? input,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final ok = panel.isInputSufficient;
+    final statusColor = ok ? AppColors.ok : AppColors.error;
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    ok ? 'Ввод достаточен' : 'Превышение ТУ',
+                    style: TextStyle(
+                      color: statusColor,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                if (input != null)
+                  Text(
+                    'Ввод ${input.breakerAmps} А',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(body, style: const TextStyle(fontSize: 16, height: 1.4)),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                _metric(
+                  context,
+                  panel.totalCalculatedPowerKw.toStringAsFixed(1),
+                  'кВт',
+                  'Расчётная мощность',
+                ),
+                _metric(
+                  context,
+                  '${(panel.loadFactor * 100).round()}',
+                  '%',
+                  'Загрузка ввода',
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _metric(
+                  context,
+                  '${panel.totalDinModules}',
+                  'DIN',
+                  'Модулей',
+                ),
+                _metric(
+                  context,
+                  panel.recommendedPanelSize.replaceAll(' модулей', '')
+                      .replaceAll(' модуля', ''),
+                  'мод.',
+                  'Корпус',
+                ),
+              ],
+            ),
+            if (input != null) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 10),
+              Text(
+                '${input.cableType} · УЗО ${input.rcdMa} мА'
+                '${input.rcdAmps != null ? " / ${input.rcdAmps} А" : ""}',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _infoTile(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _metric(
+    BuildContext context,
+    String value,
+    String unit,
+    String label,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.black54, fontSize: 16)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                unit,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
           Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
+            label,
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _linesSection(BuildContext context) {
+    final widgets = <Widget>[];
+    final grouped = <String, List<CircuitGroup>>{};
+    for (final d in result.panel.protectionDevices) {
+      grouped[d.id] = result.groups.where((g) => g.parentRcdId == d.id).toList();
+    }
+    final standalone =
+        result.groups.where((g) => g.parentRcdId == null).toList();
+
+    for (final d in result.panel.protectionDevices) {
+      final children = grouped[d.id] ?? const [];
+      if (children.isEmpty) continue;
+      widgets.add(
+        _groupHeader(
+          context,
+          '${d.name} · ${d.amps} А · ${d.poles}P',
+        ),
+      );
+      for (final g in children) {
+        widgets.add(_lineRow(context, g, child: true));
+      }
+    }
+    if (standalone.isNotEmpty) {
+      widgets.add(_groupHeader(context, 'Отдельные линии'));
+      for (final g in standalone) {
+        widgets.add(_lineRow(context, g));
+      }
+    }
+    return widgets;
+  }
+
+  Widget _groupHeader(BuildContext context, String text) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 10, 4, 6),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: scheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
+  Widget _lineRow(BuildContext context, CircuitGroup g, {bool child = false}) {
+    final scheme = Theme.of(context).colorScheme;
+    final hasWarning = g.warnings.isNotEmpty;
+    final dotColor = hasWarning ? AppColors.warn : AppColors.ok;
+    final rcd = g.isDifferentialBreaker
+        ? 'диф ${g.breakerAmps}/${g.rcdMa} мА'
+        : (g.hasRcd && g.rcdMa != null
+            ? 'УЗО ${g.rcdMa} мА${g.rcdType == null ? "" : " ${g.rcdType}"}'
+            : '—');
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(child ? 26 : 14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    g.name.replaceFirst('Гр. ', ''),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${g.totalPowerKw.toStringAsFixed(2)} кВт',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                _badge(context, '${g.calculatedCurrentA.toStringAsFixed(1)} А'),
+                _badge(context, 'авт ${g.breakerAmps} А'),
+                _badge(context, g.cableType),
+                _badge(context, rcd),
+                _badge(context, '${g.dinModules} DIN'),
+                if (g.phase != null) _badge(context, g.phase!),
+              ],
+            ),
+            if (hasWarning) ...[
+              const SizedBox(height: 8),
+              Text(
+                g.warnings.join(' · '),
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.3,
+                  color: AppColors.warn,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _badge(BuildContext context, String text) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(text, style: const TextStyle(fontSize: 12)),
+    );
+  }
+
+  Widget _warningTile(BuildContext context, String text) {
+    final scheme = Theme.of(context).colorScheme;
+    final isError = text.contains('Перегруз') ||
+        text.contains('кончилась') ||
+        text.contains('превышает') ||
+        text.contains('нельзя');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isError ? Icons.error_outline : Icons.info_outline,
+            size: 20,
+            color: isError ? AppColors.error : scheme.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 14, height: 1.35),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _materialRow(BuildContext context, MaterialItem m) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(m.name, style: const TextStyle(fontSize: 15)),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '${m.quantity % 1 == 0 ? m.quantity.toInt() : m.quantity} ${m.unit}',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           ),
         ],
       ),

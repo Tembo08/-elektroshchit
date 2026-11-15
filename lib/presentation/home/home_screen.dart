@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
 import '../project/object_type_screen.dart';
+import '../tips/tips_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -48,6 +49,18 @@ class HomeScreen extends ConsumerWidget {
                     padding: EdgeInsets.symmetric(vertical: 4),
                     child: Text('Начать проект', style: TextStyle(fontSize: 17)),
                   ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const TipsScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.menu_book_outlined),
+                  label: const Text('Шпаргалка электрика'),
                 ),
                 const SizedBox(height: 12),
               ],
