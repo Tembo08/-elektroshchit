@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'panel_illustration.dart';
+
 /// Варианты оформления главного экрана. Оставлены как витрина: после выбора
 /// один из них останется в приложении, остальные можно удалить.
 enum HomeHeroVariant { modules, singleLine, panel, typography }
@@ -23,7 +25,7 @@ class HomeHero extends StatelessWidget {
     final logo = switch (variant) {
       HomeHeroVariant.modules => _ModulesLogo(color: scheme.primary),
       HomeHeroVariant.singleLine => _SingleLineLogo(color: scheme.primary),
-      HomeHeroVariant.panel => _PanelLogo(color: scheme.primary),
+      HomeHeroVariant.panel => const PanelIllustration(width: 250),
       HomeHeroVariant.typography => _BusMark(color: scheme.primary),
     };
 
@@ -251,79 +253,4 @@ class _SingleLinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SingleLinePainter old) => old.color != color;
-}
-
-// ───────────────────────── 3. Панель ─────────────────────────
-/// Щит с дверцей и модулями: «продуктовый» знак.
-class _PanelLogo extends StatelessWidget {
-  final Color color;
-  const _PanelLogo({required this.color});
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 168,
-        height: 168,
-        child: CustomPaint(painter: _PanelPainter(color)),
-      );
-}
-
-class _PanelPainter extends CustomPainter {
-  final Color color;
-  _PanelPainter(this.color);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final body = RRect.fromRectAndRadius(
-      Rect.fromLTWH(12, 6, size.width - 24, size.height - 12),
-      const Radius.circular(14),
-    );
-    canvas.drawRRect(
-      body,
-      Paint()
-        ..color = color.withValues(alpha: 0.10)
-        ..style = PaintingStyle.fill,
-    );
-    canvas.drawRRect(
-      body,
-      Paint()
-        ..color = color.withValues(alpha: 0.55)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4,
-    );
-
-    // акцентная полоса-«дверца»
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(24, 18, 8, size.height - 36),
-        const Radius.circular(4),
-      ),
-      Paint()..color = color,
-    );
-
-    // модули 2×3
-    const cols = 2;
-    const rows = 3;
-    final area = Rect.fromLTWH(44, 18, size.width - 68, size.height - 36);
-    final cellW = (area.width - 8) / cols;
-    final cellH = (area.height - 10) / rows;
-    for (var r = 0; r < rows; r++) {
-      for (var c = 0; c < cols; c++) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(
-              area.left + c * (cellW + 8),
-              area.top + r * (cellH + 5),
-              cellW,
-              cellH,
-            ),
-            const Radius.circular(3),
-          ),
-          Paint()..color = color.withValues(alpha: 0.22),
-        );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PanelPainter old) => old.color != color;
 }
