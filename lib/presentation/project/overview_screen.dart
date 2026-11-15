@@ -36,6 +36,7 @@ class OverviewScreen extends ConsumerWidget {
       core.ConsumerType.airConditioner: 'Кондиционер',
       core.ConsumerType.underfloorHeating: 'Тёплый пол',
       core.ConsumerType.refrigerator: 'Холодильник',
+      core.ConsumerType.evCharger: 'Зарядка электромобиля',
     };
     return m[t] ?? t.name;
   }
@@ -140,6 +141,63 @@ class OverviewScreen extends ConsumerWidget {
     );
   }
 
+  Widget _roomCard(
+    BuildContext context,
+    WidgetRef ref,
+    RoomDraft r,
+    ProjectDraft draft,
+    ColorScheme scheme,
+  ) {
+    return InkWell(
+      onTap: () => _editRoom(context, ref, r),
+      borderRadius: BorderRadius.circular(14),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: scheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                r.name,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Text('Розетки: ${r.totalSockets}',
+                  style: const TextStyle(fontSize: 14)),
+              Text('Лампы: ${r.lights}',
+                  style: const TextStyle(fontSize: 14)),
+              Text('Выключатели: ${r.switches}',
+                  style: const TextStyle(fontSize: 14)),
+              if (r.dedicatedCount > 0)
+                Text(
+                  'Силовые: ${r.dedicatedCount}',
+                  style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
+                ),
+              const SizedBox(height: 10),
+              Text(
+                draft.allowedPowerKw > 0
+                    ? 'ТУ (тех. условия): ${draft.allowedPowerKw.toStringAsFixed(0)} кВт'
+                    : 'ТУ (тех. условия): не задано',
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(projectDraftProvider);
@@ -154,78 +212,31 @@ class OverviewScreen extends ConsumerWidget {
                 'Добавьте хотя бы одну комнату',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: scheme.onSurfaceVariant,
                 ),
               ),
             )
-          : GridView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-              gridDelegate:
-                  const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 280,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                // Фиксированная высота: карточки компактные, без пустоты снизу.
-                mainAxisExtent: 152,
-              ),
-              itemCount: rooms.length,
-              itemBuilder: (context, i) {
-                final r = rooms[i];
-                return InkWell(
-                  onTap: () => _editRoom(context, ref, r),
-                  borderRadius: BorderRadius.circular(14),
-                  child: Ink(
-                    decoration: BoxDecoration(
-                      color: scheme.surfaceContainerHigh,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: scheme.outlineVariant),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            r.name,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Розетки: ${r.totalSockets}',
-                            style: const TextStyle(fontSize: 15),
-                          ),
-                          Text(
-                            'Лампы: ${r.lights}',
-                            style: const TextStyle(fontSize: 15),
-                          ),
-                          Text(
-                            'Выключатели: ${r.switches}',
-                            style: const TextStyle(fontSize: 15),
-                          ),
-                          if (r.dedicatedCount > 0)
-                            Text(
-                              'Силовые: ${r.dedicatedCount}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: scheme.onSurfaceVariant,
-                              ),
-                            ),
-                          const Spacer(),
-                          Text(
-                            'ТУ: ${draft.allowedPowerKw > 0 ? "${draft.allowedPowerKw.toStringAsFixed(0)} кВт" : "не задано"}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                // Карточки сами подбирают высоту под содержимое — так нет
+                // переполнения при любом числе строк и масштабе шрифта.
+                final columns = (constraints.maxWidth / 260).floor().clamp(1, 4);
+                final width = (constraints.maxWidth -
+                        32 -
+                        12 * (columns - 1)) /
+                    columns;
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final r in rooms)
+                        SizedBox(
+                          width: width,
+                          child: _roomCard(context, ref, r, draft, scheme),
+                        ),
+                    ],
                   ),
                 );
               },

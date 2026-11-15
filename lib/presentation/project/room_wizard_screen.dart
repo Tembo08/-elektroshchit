@@ -41,6 +41,7 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
     core.ConsumerType.airConditioner: 'Кондиционер',
     core.ConsumerType.underfloorHeating: 'Тёплый пол',
     core.ConsumerType.refrigerator: 'Холодильник',
+    core.ConsumerType.evCharger: 'Зарядка электромобиля (EV)',
   };
 
   @override

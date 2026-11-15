@@ -112,11 +112,15 @@ class RoomsFlowScreen extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _addRoom(context, ref),
-        icon: const Icon(Icons.add),
-        label: const Text('Комната'),
-      ),
+      // Кнопка одна: в пустом состоянии — большая по центру,
+      // с комнатами — компактная FAB.
+      floatingActionButton: rooms.isEmpty
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _addRoom(context, ref),
+              icon: const Icon(Icons.add),
+              label: const Text('Комната'),
+            ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),

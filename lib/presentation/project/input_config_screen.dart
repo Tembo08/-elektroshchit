@@ -154,13 +154,14 @@ class _InputConfigScreenState extends ConsumerState<InputConfigScreen> {
         padding: const EdgeInsets.all(20),
         children: [
           const Text(
-            'Разрешённая мощность по вашим ТУ, кВт',
+            'Разрешённая мощность по ТУ, кВт',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
           Text(
-            'Не норма ПУЭ. Укажите цифру из договора или технических условий '
-            'на присоединение. Ниже — только пример для старта.',
+            'ТУ — технические условия на присоединение: цифра из договора '
+            'с энергоснабжающей организацией. Не норма ПУЭ. Ниже — только '
+            'пример для старта.',
             style: TextStyle(
               fontSize: 13,
               color: Theme.of(context).colorScheme.onSurfaceVariant,

@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:elektroshchit/core/project_draft.dart';
 import 'package:elektroshchit/main.dart';
 import 'package:elektroshchit/presentation/project/input_config_screen.dart';
+import 'package:elektroshchit/presentation/project/overview_screen.dart';
 import 'package:elektroshchit/presentation/project/room_wizard_screen.dart';
 import 'package:elektroshchit/presentation/project/rooms_flow_screen.dart';
 
@@ -200,7 +201,8 @@ void main() {
 
     // Комнаты: добавляем комнату по умолчанию
     expect(find.text('Комнаты'), findsOneWidget);
-    await tester.tap(find.text('Комната'));
+    // В пустом состоянии кнопка одна — большая, по центру.
+    await tester.tap(find.text('Добавить комнату'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Готово'));
     await tester.pumpAndSettle();
@@ -241,5 +243,62 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.widgetWithText(TextField, '10'), findsOneWidget,
         reason: 'мощность по ТУ должна подставляться из черновика');
+  });
+
+  testWidgets('пустой экран комнат: одна кнопка добавления, без FAB',
+      (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(home: RoomsFlowScreen(norms: norms)),
+      ),
+    );
+
+    expect(find.text('Добавить комнату'), findsOneWidget);
+    expect(find.byType(FloatingActionButton), findsNothing);
+  });
+
+  testWidgets('обзор не переполняется на узком экране с богатой комнатой',
+      (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(projectDraftProvider.notifier);
+    notifier.startProject(ObjectType.apartment, PhaseSystem.single);
+    notifier.setInput(allowedPowerKw: 18);
+    notifier.addRoom(
+      const RoomDraft(
+        id: 'r1',
+        name: 'Кухня-гостиная',
+        type: RoomType.kitchen,
+        socketsNormal: 12,
+        lights: 6,
+        switches: 4,
+        dedicated: {
+          ConsumerType.electricStove: ApplianceSpec(quantity: 2),
+          ConsumerType.dishwasher: ApplianceSpec(quantity: 1),
+        },
+      ),
+    );
+
+    tester.view.physicalSize = const Size(420, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(home: OverviewScreen(norms: norms)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull,
+        reason: 'карточка не должна переполняться');
+    expect(find.textContaining('Силовые: 3'), findsOneWidget);
+    expect(find.textContaining('ТУ (тех. условия): 18'), findsOneWidget);
   });
 }

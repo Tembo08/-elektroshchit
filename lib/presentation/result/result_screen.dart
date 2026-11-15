@@ -52,6 +52,14 @@ class ResultScreen extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              _legendDot(context, AppColors.ok, 'без замечаний'),
+              const SizedBox(width: 14),
+              _legendDot(context, AppColors.warn, 'есть предупреждение'),
+            ],
+          ),
           const SizedBox(height: 8),
           ..._linesSection(context),
           const SizedBox(height: 20),
@@ -278,6 +286,24 @@ class ResultScreen extends StatelessWidget {
       }
     }
     return widgets;
+  }
+
+  Widget _legendDot(BuildContext context, Color color, String label) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Container(
+          width: 9,
+          height: 9,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+        ),
+      ],
+    );
   }
 
   Widget _groupHeader(BuildContext context, String text) {
