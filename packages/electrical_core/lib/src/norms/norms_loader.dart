@@ -1,5 +1,6 @@
 import 'package:yaml/yaml.dart';
 
+import '../models/template.dart';
 import 'norms_models.dart';
 
 /// Загружает каталог норм из YAML-строк (или Map).
@@ -69,6 +70,7 @@ class NormsLoader {
         ? _map(rcdMap['rules'], 'rcd.rules')
         : YamlMap();
 
+    final templates = <ProjectTemplate>[];
     final defaultPower = <String, double>{};
     if (roomDefaultsYaml != null && roomDefaultsYaml.trim().isNotEmpty) {
       final roomDefaults = _map(loadYaml(roomDefaultsYaml), 'room_defaults');
@@ -77,6 +79,49 @@ class NormsLoader {
         for (final entry in powerMap.entries) {
           final value = entry.value;
           if (value is num) defaultPower[entry.key.toString()] = value.toDouble();
+        }
+      }
+      final templatesMap = roomDefaults['templates'];
+      if (templatesMap is YamlMap) {
+        for (final entry in templatesMap.entries) {
+          final m = entry.value;
+          if (m is! YamlMap) continue;
+          final rooms = <TemplateRoom>[];
+          final roomsList = m['rooms'];
+          if (roomsList is YamlList) {
+            for (final r in roomsList) {
+              if (r is! YamlMap) continue;
+              final consumers = <TemplateConsumer>[];
+              final consumersList = r['consumers'];
+              if (consumersList is YamlList) {
+                for (final c in consumersList) {
+                  if (c is! YamlMap) continue;
+                  consumers.add(TemplateConsumer(
+                    type: c['type']?.toString() ?? '',
+                    quantity: _intOr(c['quantity'], 1),
+                    powerKw: (c['power_kw'] is num)
+                        ? (c['power_kw'] as num).toDouble()
+                        : null,
+                    isPowerful: c['is_powerful'] == true,
+                  ));
+                }
+              }
+              rooms.add(TemplateRoom(
+                type: r['type']?.toString() ?? 'other',
+                name: r['name']?.toString() ?? '',
+                area: _doubleOr(r['area'], 0),
+                consumers: consumers,
+              ));
+            }
+          }
+          templates.add(ProjectTemplate(
+            id: entry.key.toString(),
+            name: m['name']?.toString() ?? entry.key.toString(),
+            description: m['description']?.toString() ?? '',
+            objectType: m['object_type']?.toString() ?? 'apartment',
+            suggestedPowerKw: _doubleOr(m['suggested_power_kw'], 0),
+            rooms: rooms,
+          ));
         }
       }
     }
@@ -119,6 +164,7 @@ class NormsLoader {
               'underfloorHeating',
             ],
       defaultPowerKw: defaultPower,
+      templates: templates,
       rcdType: rcdRules['rcd_type']?.toString().toUpperCase() ?? 'AC',
       rcdRatings: ratings.isEmpty
           ? const [16, 25, 32, 40, 50, 63, 80, 100]

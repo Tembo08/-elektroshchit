@@ -145,6 +145,10 @@ class ProjectDraftNotifier extends Notifier<ProjectDraft> {
     );
   }
 
+  void replaceRooms(List<RoomDraft> rooms) {
+    state = state.copyWith(rooms: [...rooms]);
+  }
+
   void removeRoom(String id) {
     state = state.copyWith(
       rooms: state.rooms.where((r) => r.id != id).toList(),

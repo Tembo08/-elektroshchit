@@ -4,6 +4,7 @@ import '../models/circuit_group.dart';
 import '../models/consumer.dart';
 import '../models/enums.dart';
 import '../models/panel_result.dart';
+import '../models/phase_balance.dart';
 import '../models/project.dart';
 import '../models/protection_device.dart';
 import '../models/room.dart';
@@ -15,11 +16,15 @@ class CalculationResult {
   final List<String> warnings;
   final CircuitGroup? inputGroup;
 
+  /// Баланс фаз по расчётным мощностям; null для однофазного проекта.
+  final PhaseBalance? phaseBalance;
+
   const CalculationResult({
     required this.groups,
     required this.panel,
     required this.warnings,
     this.inputGroup,
+    this.phaseBalance,
   });
 }
 
@@ -307,12 +312,54 @@ class CircuitCalculator {
       protectionDevices: devices,
     );
 
+    final balance = _phaseBalance(groups, project.phaseSystem);
+    if (balance != null && !balance.isBalanced) {
+      warnings.add(
+        'Перекос фаз ${balance.imbalancePercent.toStringAsFixed(0)}% '
+        '(L1 ${balance.l1Kw.toStringAsFixed(1)} / '
+        'L2 ${balance.l2Kw.toStringAsFixed(1)} / '
+        'L3 ${balance.l3Kw.toStringAsFixed(1)} кВт) — перекиньте часть '
+        'линий на свободную фазу',
+      );
+    }
+
     return CalculationResult(
       groups: groups,
       panel: panel,
       warnings: warnings,
       inputGroup: inputGroup,
+      phaseBalance: balance,
     );
+  }
+
+  /// Суммарная мощность по фазам. Трёхфазные линии делятся на три фазы.
+  PhaseBalance? _phaseBalance(
+    List<CircuitGroup> groups,
+    PhaseSystem phaseSystem,
+  ) {
+    if (phaseSystem != PhaseSystem.three) return null;
+    var l1 = 0.0;
+    var l2 = 0.0;
+    var l3 = 0.0;
+    for (final g in groups) {
+      final p = g.totalPowerKw;
+      switch (g.phase) {
+        case 'L1':
+          l1 += p;
+        case 'L2':
+          l2 += p;
+        case 'L3':
+          l3 += p;
+        case 'L1-L2-L3':
+          l1 += p / 3;
+          l2 += p / 3;
+          l3 += p / 3;
+        default:
+          // Без фазы (не должно случаться в 3-фазном расчёте) — на L1.
+          l1 += p;
+      }
+    }
+    return PhaseBalance(l1Kw: l1, l2Kw: l2, l3Kw: l3);
   }
 
   // ─────────────────────────── линии ───────────────────────────

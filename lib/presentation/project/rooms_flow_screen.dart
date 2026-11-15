@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/project_draft.dart';
 import '../../core/tips.dart';
 import '../widgets/tip_card.dart';
+import '../templates/templates_screen.dart';
 import 'input_config_screen.dart';
 import 'room_wizard_screen.dart';
 
@@ -38,7 +39,22 @@ class RoomsFlowScreen extends ConsumerWidget {
     final rooms = ref.watch(projectDraftProvider).rooms;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Комнаты')),
+      appBar: AppBar(
+        title: const Text('Комнаты'),
+        actions: [
+          IconButton(
+            tooltip: 'Готовые шаблоны',
+            icon: const Icon(Icons.dashboard_customize_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => TemplatesScreen(norms: norms),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
@@ -59,6 +75,18 @@ class RoomsFlowScreen extends ConsumerWidget {
                     onPressed: () => _addRoom(context, ref),
                     icon: const Icon(Icons.add),
                     label: const Text('Добавить комнату'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => TemplatesScreen(norms: norms),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.dashboard_customize_outlined),
+                    label: const Text('Начать с шаблона'),
                   ),
                 ],
               ),

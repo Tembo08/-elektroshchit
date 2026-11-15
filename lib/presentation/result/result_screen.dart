@@ -41,6 +41,10 @@ class ResultScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
           _summaryCard(context, panel, input),
+          if (result.phaseBalance != null) ...[
+            const SizedBox(height: 12),
+            _phaseCard(context, result.phaseBalance!),
+          ],
           const SizedBox(height: 16),
           Row(
             children: [
@@ -212,6 +216,100 @@ class ResultScreen extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _phaseCard(BuildContext context, PhaseBalance b) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = b.isBalanced ? AppColors.ok : AppColors.warn;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text(
+                  'Баланс фаз',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    b.isBalanced
+                        ? 'перекос ${b.imbalancePercent.toStringAsFixed(0)}%'
+                        : 'перекос ${b.imbalancePercent.toStringAsFixed(0)}% — много',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _phaseRow(context, 'L1', b.l1Kw, b.currentL1A, b.maxKw),
+            _phaseRow(context, 'L2', b.l2Kw, b.currentL2A, b.maxKw),
+            _phaseRow(context, 'L3', b.l3Kw, b.currentL3A, b.maxKw),
+            const SizedBox(height: 4),
+            Text(
+              'Практика: перекос больше 15% — перекиньте часть линий.',
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _phaseRow(
+    BuildContext context,
+    String name,
+    double kw,
+    double amps,
+    double maxKw,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final fraction = maxKw <= 0 ? 0.0 : kw / maxKw;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 30,
+            child: Text(
+              name,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: fraction,
+                minHeight: 8,
+                backgroundColor: scheme.surfaceContainerHighest,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 130,
+            child: Text(
+              '${kw.toStringAsFixed(1)} кВт · ${amps.toStringAsFixed(0)} А',
+              textAlign: TextAlign.right,
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/tips.dart';
+import '../checklist/checklist_screen.dart';
 
 /// «Шпаргалка» — все подсказки списком. Можно показать заказчику или
 /// пролистать перед выездом.
@@ -29,7 +30,20 @@ class TipsScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Шпаргалка электрика')),
+      appBar: AppBar(
+        title: const Text('Шпаргалка электрика'),
+        actions: [
+          IconButton(
+            tooltip: 'Чек-лист «Принять 380 В»',
+            icon: const Icon(Icons.fact_check_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ChecklistScreen()),
+              );
+            },
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
@@ -40,6 +54,24 @@ class TipsScreen extends StatelessWidget {
               fontSize: 14,
               height: 1.35,
               color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.electrical_services,
+                  color: Theme.of(context).colorScheme.primary),
+              title: const Text(
+                'Чек-лист: принять 380 В',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              subtitle: const Text(
+                '12 шагов от осмотра ввода до сдачи щита',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ChecklistScreen()),
+              ),
             ),
           ),
           const SizedBox(height: 16),

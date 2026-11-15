@@ -109,6 +109,68 @@ void main() {
     });
   });
 
+  group('шаблоны и баланс фаз', () {
+    test('шаблоны объектов загружаются из room_defaults.yaml', () {
+      expect(norms.templates.length, greaterThanOrEqualTo(6));
+      final studio = norms.templates.firstWhere((t) => t.id == 'studio');
+      expect(studio.rooms, isNotEmpty);
+      expect(studio.suggestedPowerKw, greaterThan(0));
+      expect(studio.objectType, 'apartment');
+      final house = norms.templates.firstWhere((t) => t.id == 'house_150_ev');
+      expect(house.objectType, 'privateHouse');
+      expect(house.totalSockets, greaterThan(20));
+      expect(
+        house.rooms
+            .expand((r) => r.consumers)
+            .any((c) => c.type == 'evCharger'),
+        isTrue,
+      );
+    });
+
+    test('баланс фаз: сумма равна мощностям, для 1 фазы — null', () {
+      final onePhase = calc.calculate(project(rooms: [
+        room('Зал', RoomType.livingRoom, [c('s', ConsumerType.socket, qty: 6)]),
+      ]));
+      expect(onePhase.phaseBalance, isNull);
+
+      final three = calc.calculate(
+        project(powerKw: 15, phase: PhaseSystem.three, rooms: [
+          room('Кухня', RoomType.kitchen, [c('s', ConsumerType.socket, qty: 6)]),
+          room('Зал', RoomType.livingRoom, [
+            c('l', ConsumerType.lightPoint, qty: 4),
+          ]),
+          room('Гараж', RoomType.technical, [
+            c('ev', ConsumerType.evCharger,
+                power: 7.0, powerful: true, phases: 3),
+          ]),
+        ]),
+        socketLines: 2,
+      );
+      final b = three.phaseBalance!;
+      expect(b.totalKw, closeTo(three.panel.totalCalculatedPowerKw, 0.01));
+      expect(b.isBalanced, isTrue);
+    });
+
+    test('перекос фаз больше 15% даёт предупреждение', () {
+      final r = calc.calculate(
+        project(powerKw: 15, phase: PhaseSystem.three, rooms: [
+          room('Кухня', RoomType.kitchen, [
+            c('st', ConsumerType.electricStove, power: 7.0, powerful: true),
+          ]),
+          room('Зал', RoomType.livingRoom, [c('s', ConsumerType.socket, qty: 6)]),
+        ]),
+        socketLines: 1,
+      );
+      final b = r.phaseBalance!;
+      expect(b.isBalanced, isFalse);
+      expect(b.imbalancePercent, greaterThan(15));
+      expect(
+        r.warnings.any((w) => w.contains('Перекос фаз')),
+        isTrue,
+      );
+    });
+  });
+
   group('розеточные группы', () {
     test('не больше 10 точек на линию и автомат не выше 16 А', () {
       final r = calc.calculate(

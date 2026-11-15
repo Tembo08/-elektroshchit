@@ -1,50 +1,378 @@
 # Шаблоны комнат и потребителей по умолчанию
 # version: ru_2026
+#
+# templates — готовые заготовки объекта: пользователь выбирает шаблон,
+# приложение подставляет комнаты и потребителей, дальше он правит под объект.
+# suggested_power_kw — ориентир по ТУ (не норма!), только как подсказка.
 
 templates:
   studio:
     name: "Студия"
+    description: "Одна комната-кухня, санузел, коридор"
     object_type: apartment
+    suggested_power_kw: 5
     rooms:
-      - type: kitchen
+      - type: livingRoom
         name: "Кухня-гостиная"
         area: 20
         consumers:
-          - { type: socket, name: "Розетки", quantity: 8 }
-          - { type: lightPoint, name: "Светильники", quantity: 4 }
-          - { type: refrigerator, name: "Холодильник", quantity: 1, is_powerful: false }
-          - { type: hood, name: "Вытяжка", quantity: 1 }
+          - { type: socket, quantity: 8 }
+          - { type: lightPoint, quantity: 4 }
+          - { type: switchSingle, quantity: 2 }
+          - { type: refrigerator, quantity: 1 }
+          - { type: hood, quantity: 1 }
+          - { type: electricStove, quantity: 1, power_kw: 7.0, is_powerful: true }
+      - type: combinedBathroom
+        name: "Санузел"
+        area: 4
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 1 }
+          - { type: washingMachine, quantity: 1, power_kw: 2.0, is_powerful: true }
+      - type: hallway
+        name: "Коридор"
+        area: 4
+        consumers:
+          - { type: socket, quantity: 1 }
+          - { type: lightPoint, quantity: 2 }
+          - { type: switchDouble, quantity: 1 }
 
   one_room:
     name: "1-комнатная"
+    description: "Кухня, комната, санузел, коридор"
     object_type: apartment
+    suggested_power_kw: 7
     rooms:
       - type: kitchen
         name: "Кухня"
         area: 10
         consumers:
-          - { type: socket, name: "Розетки", quantity: 6 }
-          - { type: lightPoint, name: "Свет", quantity: 2 }
-          - { type: refrigerator, name: "Холодильник", quantity: 1 }
+          - { type: socket, quantity: 6 }
+          - { type: lightPoint, quantity: 2 }
+          - { type: switchSingle, quantity: 1 }
+          - { type: refrigerator, quantity: 1 }
+          - { type: hood, quantity: 1 }
+          - { type: electricStove, quantity: 1, power_kw: 7.0, is_powerful: true }
       - type: livingRoom
         name: "Комната"
         area: 16
         consumers:
-          - { type: socket, name: "Розетки", quantity: 6 }
-          - { type: lightPoint, name: "Свет", quantity: 3 }
-      - type: bathroom
-        name: "Ванная"
+          - { type: socket, quantity: 6 }
+          - { type: lightPoint, quantity: 3 }
+          - { type: switchDouble, quantity: 1 }
+          - { type: airConditioner, quantity: 1, power_kw: 2.5, is_powerful: true }
+      - type: combinedBathroom
+        name: "Санузел"
         area: 4
         consumers:
-          - { type: socket, name: "Розетка", quantity: 1 }
-          - { type: lightPoint, name: "Свет", quantity: 1 }
-          - { type: washingMachine, name: "Стиральная машина", quantity: 1, power_kw: 2.0, is_powerful: true }
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 1 }
+          - { type: washingMachine, quantity: 1, power_kw: 2.0, is_powerful: true }
       - type: hallway
         name: "Коридор"
         area: 5
         consumers:
-          - { type: socket, name: "Розетка", quantity: 1 }
-          - { type: lightPoint, name: "Свет", quantity: 1 }
+          - { type: socket, quantity: 1 }
+          - { type: lightPoint, quantity: 1 }
+
+  two_room:
+    name: "2-комнатная"
+    description: "Кухня, 2 комнаты, санузел, коридор, балкон"
+    object_type: apartment
+    suggested_power_kw: 10
+    rooms:
+      - type: kitchen
+        name: "Кухня"
+        area: 11
+        consumers:
+          - { type: socket, quantity: 8 }
+          - { type: lightPoint, quantity: 2 }
+          - { type: switchSingle, quantity: 1 }
+          - { type: refrigerator, quantity: 1 }
+          - { type: hood, quantity: 1 }
+          - { type: electricStove, quantity: 1, power_kw: 7.0, is_powerful: true }
+      - type: livingRoom
+        name: "Гостиная"
+        area: 18
+        consumers:
+          - { type: socket, quantity: 8 }
+          - { type: lightPoint, quantity: 3 }
+          - { type: switchDouble, quantity: 1 }
+          - { type: airConditioner, quantity: 1, power_kw: 2.5, is_powerful: true }
+      - type: bedroom
+        name: "Спальня"
+        area: 13
+        consumers:
+          - { type: socket, quantity: 6 }
+          - { type: lightPoint, quantity: 2 }
+          - { type: switchSingle, quantity: 1 }
+      - type: combinedBathroom
+        name: "Санузел"
+        area: 4
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 1 }
+          - { type: washingMachine, quantity: 1, power_kw: 2.0, is_powerful: true }
+      - type: hallway
+        name: "Коридор"
+        area: 5
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 2 }
+      - type: balcony
+        name: "Балкон"
+        area: 3
+        consumers:
+          - { type: socket, quantity: 1 }
+          - { type: lightPoint, quantity: 1 }
+
+  three_room:
+    name: "3-комнатная"
+    description: "Кухня, 3 комнаты, 2 санузла, коридор, балкон"
+    object_type: apartment
+    suggested_power_kw: 15
+    rooms:
+      - type: kitchen
+        name: "Кухня"
+        area: 12
+        consumers:
+          - { type: socket, quantity: 8 }
+          - { type: lightPoint, quantity: 3 }
+          - { type: switchSingle, quantity: 1 }
+          - { type: refrigerator, quantity: 1 }
+          - { type: hood, quantity: 1 }
+          - { type: electricStove, quantity: 1, power_kw: 7.0, is_powerful: true }
+          - { type: dishwasher, quantity: 1, power_kw: 2.0, is_powerful: true }
+      - type: livingRoom
+        name: "Гостиная"
+        area: 22
+        consumers:
+          - { type: socket, quantity: 8 }
+          - { type: lightPoint, quantity: 4 }
+          - { type: switchDouble, quantity: 1 }
+          - { type: airConditioner, quantity: 1, power_kw: 2.5, is_powerful: true }
+      - type: bedroom
+        name: "Спальня"
+        area: 15
+        consumers:
+          - { type: socket, quantity: 6 }
+          - { type: lightPoint, quantity: 2 }
+          - { type: switchSingle, quantity: 1 }
+      - type: childrenRoom
+        name: "Детская"
+        area: 13
+        consumers:
+          - { type: socket, quantity: 4 }
+          - { type: lightPoint, quantity: 2 }
+          - { type: switchSingle, quantity: 1 }
+      - type: combinedBathroom
+        name: "Санузел"
+        area: 5
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 1 }
+          - { type: washingMachine, quantity: 1, power_kw: 2.0, is_powerful: true }
+      - type: toilet
+        name: "Туалет"
+        area: 2
+        consumers:
+          - { type: lightPoint, quantity: 1 }
+      - type: hallway
+        name: "Коридор"
+        area: 7
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 3 }
+      - type: balcony
+        name: "Балкон"
+        area: 3
+        consumers:
+          - { type: socket, quantity: 1 }
+          - { type: lightPoint, quantity: 1 }
+
+  house_100:
+    name: "Дом 100 м², газ"
+    description: "Газовый котёл, электрика по минимуму, без 3 фаз"
+    object_type: privateHouse
+    suggested_power_kw: 10
+    rooms:
+      - type: kitchen
+        name: "Кухня"
+        area: 12
+        consumers:
+          - { type: socket, quantity: 8 }
+          - { type: lightPoint, quantity: 3 }
+          - { type: switchSingle, quantity: 1 }
+          - { type: refrigerator, quantity: 1 }
+          - { type: hood, quantity: 1 }
+          - { type: electricStove, quantity: 1, power_kw: 7.0, is_powerful: true }
+      - type: livingRoom
+        name: "Гостиная"
+        area: 24
+        consumers:
+          - { type: socket, quantity: 8 }
+          - { type: lightPoint, quantity: 4 }
+          - { type: switchDouble, quantity: 2 }
+      - type: bedroom
+        name: "Спальня"
+        area: 14
+        consumers:
+          - { type: socket, quantity: 6 }
+          - { type: lightPoint, quantity: 2 }
+          - { type: switchSingle, quantity: 1 }
+      - type: bedroom
+        name: "Детская"
+        area: 12
+        consumers:
+          - { type: socket, quantity: 4 }
+          - { type: lightPoint, quantity: 2 }
+          - { type: switchSingle, quantity: 1 }
+      - type: combinedBathroom
+        name: "Санузел"
+        area: 5
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 1 }
+          - { type: washingMachine, quantity: 1, power_kw: 2.0, is_powerful: true }
+      - type: technical
+        name: "Котельная"
+        area: 6
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 1 }
+          - { type: boiler, quantity: 1, power_kw: 2.0, is_powerful: true }
+      - type: hallway
+        name: "Прихожая"
+        area: 8
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 2 }
+
+  house_150:
+    name: "Дом 150 м², электрокотёл"
+    description: "Электрокотёл 9 кВт, тёплые полы, 3 фазы"
+    object_type: privateHouse
+    suggested_power_kw: 25
+    rooms:
+      - type: kitchen
+        name: "Кухня-столовая"
+        area: 20
+        consumers:
+          - { type: socket, quantity: 10 }
+          - { type: lightPoint, quantity: 4 }
+          - { type: switchDouble, quantity: 2 }
+          - { type: refrigerator, quantity: 1 }
+          - { type: hood, quantity: 1 }
+          - { type: electricStove, quantity: 1, power_kw: 7.0, is_powerful: true }
+          - { type: dishwasher, quantity: 1, power_kw: 2.0, is_powerful: true }
+      - type: livingRoom
+        name: "Гостиная"
+        area: 28
+        consumers:
+          - { type: socket, quantity: 10 }
+          - { type: lightPoint, quantity: 5 }
+          - { type: switchDouble, quantity: 2 }
+          - { type: airConditioner, quantity: 1, power_kw: 2.5, is_powerful: true }
+      - type: bedroom
+        name: "Спальня"
+        area: 16
+        consumers:
+          - { type: socket, quantity: 6 }
+          - { type: lightPoint, quantity: 2 }
+          - { type: switchSingle, quantity: 1 }
+          - { type: underfloorHeating, quantity: 1, power_kw: 1.5, is_powerful: true }
+      - type: bedroom
+        name: "Детская"
+        area: 14
+        consumers:
+          - { type: socket, quantity: 6 }
+          - { type: lightPoint, quantity: 2 }
+          - { type: switchSingle, quantity: 1 }
+      - type: combinedBathroom
+        name: "Санузел 1"
+        area: 6
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 1 }
+          - { type: washingMachine, quantity: 1, power_kw: 2.0, is_powerful: true }
+      - type: bathroom
+        name: "Ванная 2"
+        area: 5
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 1 }
+      - type: technical
+        name: "Котельная"
+        area: 8
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 1 }
+          - { type: boiler, quantity: 1, power_kw: 9.0, is_powerful: true }
+          - { type: waterHeater, quantity: 1, power_kw: 2.0, is_powerful: true }
+      - type: hallway
+        name: "Прихожая"
+        area: 10
+        consumers:
+          - { type: socket, quantity: 3 }
+          - { type: lightPoint, quantity: 3 }
+
+  house_150_ev:
+    name: "Дом 150 м² + электромобиль"
+    description: "Электрокотёл 9 кВт и зарядка EV 7 кВт (3 фазы)"
+    object_type: privateHouse
+    suggested_power_kw: 30
+    rooms:
+      - type: kitchen
+        name: "Кухня-столовая"
+        area: 20
+        consumers:
+          - { type: socket, quantity: 10 }
+          - { type: lightPoint, quantity: 4 }
+          - { type: switchDouble, quantity: 2 }
+          - { type: refrigerator, quantity: 1 }
+          - { type: electricStove, quantity: 1, power_kw: 7.0, is_powerful: true }
+          - { type: dishwasher, quantity: 1, power_kw: 2.0, is_powerful: true }
+      - type: livingRoom
+        name: "Гостиная"
+        area: 28
+        consumers:
+          - { type: socket, quantity: 10 }
+          - { type: lightPoint, quantity: 5 }
+          - { type: switchDouble, quantity: 2 }
+      - type: bedroom
+        name: "Спальня"
+        area: 16
+        consumers:
+          - { type: socket, quantity: 6 }
+          - { type: lightPoint, quantity: 2 }
+          - { type: switchSingle, quantity: 1 }
+      - type: combinedBathroom
+        name: "Санузел"
+        area: 6
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 1 }
+          - { type: washingMachine, quantity: 1, power_kw: 2.0, is_powerful: true }
+      - type: technical
+        name: "Котельная"
+        area: 8
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 1 }
+          - { type: boiler, quantity: 1, power_kw: 9.0, is_powerful: true }
+      - type: technical
+        name: "Гараж"
+        area: 20
+        consumers:
+          - { type: socket, quantity: 2 }
+          - { type: lightPoint, quantity: 2 }
+          - { type: evCharger, quantity: 1, power_kw: 7.0, is_powerful: true }
+      - type: hallway
+        name: "Прихожая"
+        area: 10
+        consumers:
+          - { type: socket, quantity: 3 }
+          - { type: lightPoint, quantity: 3 }
 
 # Значения мощности по умолчанию для мощных потребителей (кВт)
 default_power_kw:

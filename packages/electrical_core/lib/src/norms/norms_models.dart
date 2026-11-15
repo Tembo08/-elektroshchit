@@ -1,6 +1,8 @@
 /// Модели нормативных данных (загружаются из YAML).
 library;
 
+import '../models/template.dart';
+
 class CableSectionNorm {
   final double sectionMm2;
   final double maxCurrentA;
@@ -79,6 +81,9 @@ class NormsCatalog {
 
   /// Мощности по умолчанию из room_defaults.yaml (ключ — имя ConsumerType).
   final Map<String, double> defaultPowerKw;
+
+  /// Готовые шаблоны объектов из room_defaults.yaml.
+  final List<ProjectTemplate> templates;
   final String fireRcdType;
   final String rcdType;
 
@@ -119,6 +124,7 @@ class NormsCatalog {
       'underfloorHeating',
     ],
     this.defaultPowerKw = const {},
+    this.templates = const [],
     this.fireRcdType = 'S',
     this.rcdType = 'AC',
   });

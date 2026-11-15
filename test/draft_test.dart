@@ -7,7 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:elektroshchit/core/project_draft.dart';
 import 'package:elektroshchit/main.dart';
+import 'package:elektroshchit/core/template_mapper.dart';
+import 'package:elektroshchit/presentation/checklist/checklist_screen.dart';
 import 'package:elektroshchit/presentation/project/input_config_screen.dart';
+import 'package:elektroshchit/presentation/templates/templates_screen.dart';
 import 'package:elektroshchit/presentation/project/overview_screen.dart';
 import 'package:elektroshchit/presentation/project/room_wizard_screen.dart';
 import 'package:elektroshchit/presentation/project/rooms_flow_screen.dart';
@@ -300,5 +303,80 @@ void main() {
         reason: 'карточка не должна переполняться');
     expect(find.textContaining('Силовые: 3'), findsOneWidget);
     expect(find.textContaining('ТУ (тех. условия): 18'), findsOneWidget);
+  });
+
+  test('шаблон превращается в комнаты черновика', () {
+    final t = norms.templates.firstWhere((t) => t.id == 'one_room');
+    final rooms = roomsFromTemplate(t, norms);
+
+    expect(rooms.length, 4);
+    final kitchen = rooms.firstWhere((r) => r.name == 'Кухня');
+    // 6 розеток + холодильник + вытяжка (они тоже точки розеточной группы)
+    expect(kitchen.socketsNormal, 8);
+    expect(kitchen.lights, 2);
+    expect(kitchen.dedicated[ConsumerType.electricStove]?.powerKw, 7.0);
+
+    final bath = rooms.firstWhere((r) => r.name == 'Санузел');
+    expect(bath.mirrorSockets, 2, reason: 'розетки санузла идут к зеркалу');
+    expect(
+      bath.dedicated[ConsumerType.washingMachine]?.quantity,
+      1,
+    );
+    expect(bath.type, RoomType.combinedBathroom);
+  });
+
+  testWidgets('шаблон применяется к проекту', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    container.read(projectDraftProvider.notifier).startProject(
+          ObjectType.apartment,
+          PhaseSystem.single,
+        );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => TemplatesScreen(norms: norms),
+                    ),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Шаблоны объектов'), findsOneWidget);
+
+    await tester.tap(find.text('Применить').first);
+    await tester.pumpAndSettle();
+
+    final draft = container.read(projectDraftProvider);
+    expect(draft.rooms, isNotEmpty);
+    expect(draft.rooms.length, norms.templates.first.rooms.length);
+    expect(draft.allowedPowerKw,
+        norms.templates.first.suggestedPowerKw);
+  });
+
+  testWidgets('чек-лист «Принять 380 В» отмечает шаги', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: ChecklistScreen()),
+    );
+
+    expect(find.text('Пройдено 0 из 12'), findsOneWidget);
+    await tester.tap(find.text('Сверить ТУ'));
+    await tester.pumpAndSettle();
+    expect(find.text('Пройдено 1 из 12'), findsOneWidget);
   });
 }
