@@ -494,6 +494,12 @@ class ResultScreen extends StatelessWidget {
                 if (rcd != null) _badge(context, rcd),
                 _badge(context, '${g.dinModules} DIN'),
                 if (g.phase != null) _badge(context, g.phase!),
+                if (g.voltageDropPercent > 0)
+                  _badge(
+                    context,
+                    'ΔU ${g.voltageDropPercent.toStringAsFixed(1)}%',
+                    highlight: g.voltageDropPercent > 5,
+                  ),
               ],
             ),
             if (hasWarning) ...[
@@ -514,15 +520,24 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _badge(BuildContext context, String text) {
+  Widget _badge(BuildContext context, String text, {bool highlight = false}) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
+        color: highlight
+            ? AppColors.warn.withValues(alpha: 0.18)
+            : scheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(text, style: const TextStyle(fontSize: 12)),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: highlight ? FontWeight.w700 : FontWeight.w400,
+          color: highlight ? AppColors.warn : null,
+        ),
+      ),
     );
   }
 

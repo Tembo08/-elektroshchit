@@ -32,6 +32,12 @@ class CircuitGroup {
   /// нагружены полностью.
   final double demandFactor;
 
+  /// Длина линии, м (0 — неизвестна).
+  final double lengthM;
+
+  /// Падение напряжения на линии, % (0 — не считалось).
+  final double voltageDropPercent;
+
   const CircuitGroup({
     required this.id,
     required this.name,
@@ -54,6 +60,8 @@ class CircuitGroup {
     this.parentRcdId,
     this.parentRcdPoles,
     this.demandFactor = 1.0,
+    this.lengthM = 0,
+    this.voltageDropPercent = 0,
   });
 
   /// Расчётная (приведённая) мощность с учётом коэффициента спроса.
@@ -81,6 +89,8 @@ class CircuitGroup {
     String? parentRcdId,
     int? parentRcdPoles,
     double? demandFactor,
+    double? lengthM,
+    double? voltageDropPercent,
   }) {
     return CircuitGroup(
       id: id ?? this.id,
@@ -105,6 +115,8 @@ class CircuitGroup {
       parentRcdId: parentRcdId ?? this.parentRcdId,
       parentRcdPoles: parentRcdPoles ?? this.parentRcdPoles,
       demandFactor: demandFactor ?? this.demandFactor,
+      lengthM: lengthM ?? this.lengthM,
+      voltageDropPercent: voltageDropPercent ?? this.voltageDropPercent,
     );
   }
 }

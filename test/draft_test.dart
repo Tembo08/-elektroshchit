@@ -170,8 +170,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Поле мощности — второй TextField (первый — название комнаты).
-    final powerField = find.byType(TextField).at(1);
+    // Поле мощности ищем по подписи: порядок TextField мог измениться
+    // (появилось поле «длина трассы до щита»).
+    final powerField = find.widgetWithText(
+      TextField,
+      'Мощность «Варочная панель», кВт',
+    );
     expect(powerField, findsOneWidget);
     await tester.enterText(powerField, '5,5');
     await tester.pumpAndSettle();

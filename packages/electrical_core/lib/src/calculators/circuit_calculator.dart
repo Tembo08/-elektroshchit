@@ -38,7 +38,16 @@ class _Unit {
   /// провода из разных комнат на одну линию.
   final int roomOrder;
 
-  const _Unit(this.source, this.label, this.powerKw, this.roomOrder);
+  /// Длина трассы до щита для этой точки, м (0 — неизвестна).
+  final double lengthM;
+
+  const _Unit(
+    this.source,
+    this.label,
+    this.powerKw,
+    this.roomOrder,
+    this.lengthM,
+  );
 }
 
 /// Мощный прибор, которому нужна отдельная линия.
@@ -84,12 +93,12 @@ class CircuitCalculator {
           if (c.quantity < 1) continue;
           powerLines.add(_PowerLine(room, c));
         } else if (norms.lightingTypes.contains(typeName)) {
-          lightingUnits.addAll(_expand(c, roomIndex));
+          lightingUnits.addAll(_expand(c, roomIndex, room.cableLengthM));
         } else if (norms.socketTypes.contains(typeName)) {
           if (isBath) {
-            bathSockets.addAll(_expand(c, roomIndex));
+            bathSockets.addAll(_expand(c, roomIndex, room.cableLengthM));
           } else {
-            socketUnits.addAll(_expand(c, roomIndex));
+            socketUnits.addAll(_expand(c, roomIndex, room.cableLengthM));
           }
         } else if (typeName.startsWith('switch')) {
           // выключатель — не нагрузка щита
@@ -380,6 +389,7 @@ class CircuitCalculator {
     required List<_Unit> units,
     required String rcdId,
   }) {
+    final length = _lengthOf(units);
     final power = units.fold<double>(0, (s, u) => s + u.powerKw);
     final current = _currentFromPower(power, 1);
     final warnings = <String>[];
@@ -397,6 +407,8 @@ class CircuitCalculator {
       breakerAmps: breaker,
       warnings: warnings,
       label: name,
+      currentA: current,
+      lengthM: length,
     );
 
     return CircuitGroup(
@@ -415,6 +427,13 @@ class CircuitCalculator {
       parentRcdPoles: null,
       hasRcd: false,
       demandFactor: norms.demandFactorSockets,
+      lengthM: length,
+      voltageDropPercent: _voltageDrop(
+        currentA: current,
+        lengthM: length,
+        sectionMm2: section.sectionMm2,
+        phases: 1,
+      ),
     );
   }
 
@@ -424,6 +443,7 @@ class CircuitCalculator {
     required List<_Unit> units,
     required String rcdId,
   }) {
+    final length = _lengthOf(units);
     final power = units.fold<double>(0, (s, u) => s + u.powerKw);
     final current = _currentFromPower(power, 1);
     final warnings = <String>[];
@@ -454,6 +474,8 @@ class CircuitCalculator {
       breakerAmps: breaker,
       warnings: warnings,
       label: name,
+      currentA: current,
+      lengthM: length,
     );
 
     return CircuitGroup(
@@ -471,6 +493,13 @@ class CircuitCalculator {
       parentRcdId: rcdId,
       hasRcd: false,
       demandFactor: norms.demandFactorLighting,
+      lengthM: length,
+      voltageDropPercent: _voltageDrop(
+        currentA: current,
+        lengthM: length,
+        sectionMm2: section.sectionMm2,
+        phases: 1,
+      ),
     );
   }
 
@@ -503,11 +532,15 @@ class CircuitCalculator {
     final breaker = breakerNorm?.amps ?? norms.powerfulMinAmps;
 
     final heavy = power >= norms.heavyLoadKw;
+    final length = room.cableLengthM;
     final section = _chooseSection(
       minSection: heavy ? norms.heavyMinSection : norms.minSectionPowerful,
       breakerAmps: breaker,
       warnings: warnings,
       label: consumer.name,
+      currentA: current,
+      lengthM: length,
+      phases: phases,
     );
 
     if (current > breaker) {
@@ -557,6 +590,13 @@ class CircuitCalculator {
       warnings: warnings,
       poles: phases,
       demandFactor: norms.demandFactorPowerful,
+      lengthM: length,
+      voltageDropPercent: _voltageDrop(
+        currentA: current,
+        lengthM: length,
+        sectionMm2: section.sectionMm2,
+        phases: phases,
+      ),
     );
   }
 
@@ -644,6 +684,9 @@ class CircuitCalculator {
     required int breakerAmps,
     required List<String> warnings,
     required String label,
+    double currentA = 0,
+    double lengthM = 0,
+    int phases = 1,
   }) {
     var section = norms.sectionAtLeast(minSection) ??
         norms.largestSection ??
@@ -674,7 +717,67 @@ class CircuitCalculator {
         'нужен инженерный расчёт ($label)',
       );
     }
+
+    // Падение напряжения: если трасса длинная, поднимаем сечение,
+    // пока не уложимся в норму (или пока не кончится таблица).
+    if (lengthM > 0 && currentA > 0) {
+      while (_voltageDrop(
+            currentA: currentA,
+            lengthM: lengthM,
+            sectionMm2: section.sectionMm2,
+            phases: phases,
+          ) >
+          norms.maxVoltageDropPercent) {
+        final next = sorted.firstWhere(
+          (s) => s.sectionMm2 > section.sectionMm2 + 0.001,
+          orElse: () => section,
+        );
+        if (identical(next, section)) break;
+        section = next;
+      }
+
+      final drop = _voltageDrop(
+        currentA: currentA,
+        lengthM: lengthM,
+        sectionMm2: section.sectionMm2,
+        phases: phases,
+      );
+      if (drop > norms.maxVoltageDropPercent) {
+        warnings.add(
+          'Падение напряжения ${drop.toStringAsFixed(1)} % больше нормы '
+          '${norms.maxVoltageDropPercent.toStringAsFixed(0)} % даже на '
+          '${section.sectionMm2} мм² при ${lengthM.toStringAsFixed(0)} м — '
+          'перенесите щит ближе или делите нагрузку ($label)',
+        );
+      }
+    }
     return section;
+  }
+
+  /// Длина линии: самая дальняя точка группы (0 — неизвестна).
+  double _lengthOf(List<_Unit> units) {
+    var maxLen = 0.0;
+    for (final u in units) {
+      if (u.lengthM > maxLen) maxLen = u.lengthM;
+    }
+    return maxLen;
+  }
+
+  /// Падение напряжения на линии, %.
+  /// 1 фаза: 2·I·L·ρ/S; 3 фазы: √3·I·L·ρ/S. ρ = 0.0225 Ом·мм²/м — медь
+  /// при нагреве до ~70 °C (хуже, чем 0.0175 при 20 °C).
+  double _voltageDrop({
+    required double currentA,
+    required double lengthM,
+    required double sectionMm2,
+    required int phases,
+  }) {
+    if (lengthM <= 0 || sectionMm2 <= 0 || currentA <= 0) return 0;
+    const rho = 0.0225;
+    final coefficient = phases == 3 ? math.sqrt(3) : 2.0;
+    final volts = coefficient * currentA * lengthM * rho / sectionMm2;
+    final nominal = phases == 3 ? 400.0 : 230.0;
+    return volts / nominal * 100;
   }
 
   /// Раскладывает точки по линиям: не больше [maxUnits] точек и
@@ -860,13 +963,13 @@ class CircuitCalculator {
     return p * c.quantity;
   }
 
-  List<_Unit> _expand(Consumer c, int roomOrder) {
+  List<_Unit> _expand(Consumer c, int roomOrder, double lengthM) {
     if (c.quantity < 1) return const [];
     final qty = c.quantity;
     final p = c.powerKw ?? _defaultPower(c);
     return List.generate(
       qty,
-      (i) => _Unit(c.copyWith(id: '${c.id}#$i'), c.name, p, roomOrder),
+      (i) => _Unit(c.copyWith(id: '${c.id}#$i'), c.name, p, roomOrder, lengthM),
     );
   }
 
@@ -1021,7 +1124,9 @@ class CircuitCalculator {
           );
         }
       }
-      add('Кабель ${g.cableType}', 'м', 10);
+      // Длина из расчёта (с запасом 10 %), иначе прежние 10 м.
+      final meters = g.lengthM > 0 ? (g.lengthM * 1.1).ceilToDouble() : 10.0;
+      add('Кабель ${g.cableType}', 'м', meters);
     }
 
     return map.values.toList();

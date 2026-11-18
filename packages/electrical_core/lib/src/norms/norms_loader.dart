@@ -182,6 +182,8 @@ class NormsLoader {
       minSectionLighting: _doubleOr(minSections['lighting'], 1.5),
       minSectionSockets: _doubleOr(minSections['sockets'], 2.5),
       minSectionPowerful: _doubleOr(minSections['powerful'], 2.5),
+      maxVoltageDropPercent:
+          _doubleOr(groupingLimits['max_voltage_drop_percent'], 5),
       demandFactorSockets: _doubleOr(demand['sockets'], 0.7),
       demandFactorLighting: _doubleOr(demand['lighting'], 1.0),
       demandFactorPowerful: _doubleOr(demand['powerful'], 1.0),

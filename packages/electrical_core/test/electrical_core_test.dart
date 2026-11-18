@@ -17,12 +17,19 @@ NormsCatalog loadNorms() {
   );
 }
 
-Room room(String id, RoomType type, List<Consumer> consumers) => Room(
+Room room(
+  String id,
+  RoomType type,
+  List<Consumer> consumers, {
+  double lengthM = 0,
+}) =>
+    Room(
       id: id,
       name: id,
       type: type,
       area: 10,
       consumers: consumers,
+      cableLengthM: lengthM,
     );
 
 Consumer c(
@@ -606,6 +613,95 @@ void main() {
       expect(input.hasRcd, isTrue);
       expect(input.rcdMa, 100);
       expect(input.rcdAmps, greaterThanOrEqualTo(input.breakerAmps));
+    });
+  });
+
+  group('падение напряжения', () {
+    test('короткая линия — сечение не растёт, падение маленькое', () {
+      final r = calc.calculate(
+        project(rooms: [
+          room('Зал', RoomType.livingRoom, [
+            c('s', ConsumerType.socket, qty: 6),
+          ], lengthM: 15),
+        ]),
+        socketLines: 1,
+      );
+      final g = r.groups.firstWhere((g) => g.name.contains('Розетки'));
+      expect(g.lengthM, 15);
+      expect(g.cableSectionMm2, 2.5);
+      expect(g.voltageDropPercent, lessThan(1.5));
+      expect(
+        r.warnings.any((w) => w.contains('Падение напряжения')),
+        isFalse,
+      );
+    });
+
+    test('длинная линия — сечение поднимается, падение уходит в норму', () {
+      // 16 А на 80 м: на 2.5 мм² падение ~12 % — сечение должно вырасти.
+      final r = calc.calculate(
+        project(powerKw: 15, rooms: [
+          room('Мастерская', RoomType.technical, [
+            c('b', ConsumerType.otherPowerful, power: 3.6, powerful: true),
+          ], lengthM: 80),
+        ]),
+      );
+      final g = r.groups.firstWhere((g) => g.name.contains('otherPowerful'));
+      expect(g.lengthM, 80);
+      expect(g.cableSectionMm2, greaterThan(2.5));
+      expect(g.voltageDropPercent, lessThanOrEqualTo(5));
+    });
+
+    test('очень длинная линия — предупреждение вместо тишины', () {
+      final r = calc.calculate(
+        project(powerKw: 25, rooms: [
+          room('Гараж', RoomType.technical, [
+            c('ev', ConsumerType.evCharger, power: 22.0, powerful: true),
+          ], lengthM: 220),
+        ]),
+      );
+      final g = r.groups.firstWhere((g) => g.name.contains('evCharger'));
+      expect(g.lengthM, 220);
+      expect(g.voltageDropPercent, greaterThan(5));
+      expect(
+        r.warnings.any(
+          (w) => w.contains('Падение напряжения') && w.contains('перенесите щит'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('длина неизвестна — проверка не выполняется и не мешает', () {
+      final r = calc.calculate(
+        project(rooms: [
+          room('Зал', RoomType.livingRoom, [c('s', ConsumerType.socket, qty: 6)]),
+        ]),
+      );
+      final g = r.groups.firstWhere((g) => g.name.contains('Розетки'));
+      expect(g.lengthM, 0);
+      expect(g.voltageDropPercent, 0);
+      expect(
+        r.warnings.any((w) => w.contains('Падение напряжения')),
+        isFalse,
+      );
+    });
+
+    test('спецификация кабеля берёт реальную длину с запасом', () {
+      final r = calc.calculate(
+        project(rooms: [
+          room('Зал', RoomType.livingRoom, [
+            c('s', ConsumerType.socket, qty: 6),
+          ], lengthM: 20),
+        ]),
+        socketLines: 1,
+      );
+      final g = r.groups.firstWhere((g) => g.name.contains('Розетки'));
+      final cable = r.panel.materials
+          .firstWhere((m) => m.name == 'Кабель ${g.cableType}');
+      expect(cable.quantity, 22); // 20 м + 10 %
+    });
+
+    test('норма падения читается из YAML', () {
+      expect(norms.maxVoltageDropPercent, 5);
     });
   });
 

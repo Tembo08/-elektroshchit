@@ -117,6 +117,7 @@ class OverviewScreen extends ConsumerWidget {
         type: d.type,
         area: 10,
         consumers: consumers,
+        cableLengthM: d.cableLengthM,
       );
     }).toList();
 

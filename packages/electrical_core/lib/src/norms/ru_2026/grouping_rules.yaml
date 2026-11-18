@@ -48,6 +48,8 @@ demand_factors:
 # Ограничения на объединение
 limits:
   max_sockets_per_group: 10
+  # Допустимое падение напряжения на линии, % (ГОСТ 32144 — ±5 %)
+  max_voltage_drop_percent: 5
   max_power_kw_per_socket_group: 3.5
   max_lighting_points_per_group: 15
 

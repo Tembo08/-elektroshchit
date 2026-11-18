@@ -26,6 +26,7 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
   int _lights = 1;
   int _switches = 1;
   int _mirrorSocket = 0; // розетка у зеркала (ванная)
+  late TextEditingController _lengthController;
 
   final Map<core.ConsumerType, ApplianceSpec> _dedicated = {};
   final Map<core.ConsumerType, TextEditingController> _powerControllers = {};
@@ -50,6 +51,11 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
     final e = widget.existing;
     _type = e?.type ?? widget.initialType ?? core.RoomType.livingRoom;
     _nameController = TextEditingController(text: e?.name ?? _typeLabel(_type));
+    _lengthController = TextEditingController(
+      text: (e != null && e.cableLengthM > 0)
+          ? e.cableLengthM.toStringAsFixed(0)
+          : '',
+    );
     if (e != null) {
       _mirrorSocket = e.mirrorSockets;
       _socketsNormal = e.socketsNormal;
@@ -164,6 +170,8 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
       switches: _switches,
       mirrorSockets: _mirrorSocket,
       dedicated: Map.of(_dedicated),
+      cableLengthM:
+          double.tryParse(_lengthController.text.replaceAll(',', '.')) ?? 0,
     );
   }
 
@@ -228,6 +236,7 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _lengthController.dispose();
     for (final c in _powerControllers.values) {
       c.dispose();
     }
@@ -283,6 +292,19 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
                 labelText: 'Название',
                 border: OutlineInputBorder(),
               ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _lengthController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Длина трассы до щита, м',
+                helperText:
+                    'Нужна для проверки падения напряжения. Пусто — не проверять',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => _dirty = true,
             ),
             const SizedBox(height: 24),
             const Text(

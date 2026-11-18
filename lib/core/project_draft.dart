@@ -37,6 +37,9 @@ class RoomDraft {
   final int mirrorSockets;
   final Map<core.ConsumerType, ApplianceSpec> dedicated;
 
+  /// Длина трассы от щита до комнаты, м. 0 — неизвестна.
+  final double cableLengthM;
+
   const RoomDraft({
     required this.id,
     required this.name,
@@ -46,6 +49,7 @@ class RoomDraft {
     this.switches = 0,
     this.mirrorSockets = 0,
     this.dedicated = const {},
+    this.cableLengthM = 0,
   });
 
   int get totalSockets {
@@ -65,6 +69,7 @@ class RoomDraft {
     int? switches,
     int? mirrorSockets,
     Map<core.ConsumerType, ApplianceSpec>? dedicated,
+    double? cableLengthM,
   }) {
     return RoomDraft(
       id: id,
@@ -75,6 +80,7 @@ class RoomDraft {
       switches: switches ?? this.switches,
       mirrorSockets: mirrorSockets ?? this.mirrorSockets,
       dedicated: dedicated ?? this.dedicated,
+      cableLengthM: cableLengthM ?? this.cableLengthM,
     );
   }
 }

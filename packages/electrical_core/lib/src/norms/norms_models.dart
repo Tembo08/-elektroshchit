@@ -71,6 +71,9 @@ class NormsCatalog {
   final double minSectionSockets;
   final double minSectionPowerful;
 
+  /// Допустимое падение напряжения на линии, % (ГОСТ 32144 — 5 %).
+  final double maxVoltageDropPercent;
+
   /// Коэффициенты спроса по типу нагрузки (0..1).
   final double demandFactorSockets;
   final double demandFactorLighting;
@@ -116,6 +119,7 @@ class NormsCatalog {
     this.minSectionLighting = 1.5,
     this.minSectionSockets = 2.5,
     this.minSectionPowerful = 2.5,
+    this.maxVoltageDropPercent = 5,
     this.demandFactorSockets = 0.7,
     this.demandFactorLighting = 1.0,
     this.demandFactorPowerful = 1.0,

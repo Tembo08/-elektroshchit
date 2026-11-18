@@ -11,6 +11,10 @@ class Room {
   final double? width;
   final List<Consumer> consumers;
 
+  /// Длина трассы от щита до комнаты, м. 0 — неизвестна (проверка
+  /// падения напряжения не выполняется).
+  final double cableLengthM;
+
   const Room({
     required this.id,
     required this.name,
@@ -19,6 +23,7 @@ class Room {
     this.length,
     this.width,
     this.consumers = const [],
+    this.cableLengthM = 0,
   });
 
   Room copyWith({
@@ -29,6 +34,7 @@ class Room {
     double? length,
     double? width,
     List<Consumer>? consumers,
+    double? cableLengthM,
   }) {
     return Room(
       id: id ?? this.id,
@@ -38,6 +44,7 @@ class Room {
       length: length ?? this.length,
       width: width ?? this.width,
       consumers: consumers ?? this.consumers,
+      cableLengthM: cableLengthM ?? this.cableLengthM,
     );
   }
 }
