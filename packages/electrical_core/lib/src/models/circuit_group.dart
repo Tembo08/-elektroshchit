@@ -27,6 +27,11 @@ class CircuitGroup {
   /// Полюсов у УЗО-родителя (2 или 4); null — своей защиты нет.
   final int? parentRcdPoles;
 
+  /// Коэффициент спроса для этой линии: 1.0 — всё, что указано, может
+  /// работать одновременно; 0.7 — розетки, которые почти никогда не
+  /// нагружены полностью.
+  final double demandFactor;
+
   const CircuitGroup({
     required this.id,
     required this.name,
@@ -48,7 +53,11 @@ class CircuitGroup {
     this.poles = 1,
     this.parentRcdId,
     this.parentRcdPoles,
+    this.demandFactor = 1.0,
   });
+
+  /// Расчётная (приведённая) мощность с учётом коэффициента спроса.
+  double get demandPowerKw => totalPowerKw * demandFactor;
 
   CircuitGroup copyWith({
     String? id,
@@ -71,6 +80,7 @@ class CircuitGroup {
     int? poles,
     String? parentRcdId,
     int? parentRcdPoles,
+    double? demandFactor,
   }) {
     return CircuitGroup(
       id: id ?? this.id,
@@ -94,6 +104,7 @@ class CircuitGroup {
       poles: poles ?? this.poles,
       parentRcdId: parentRcdId ?? this.parentRcdId,
       parentRcdPoles: parentRcdPoles ?? this.parentRcdPoles,
+      demandFactor: demandFactor ?? this.demandFactor,
     );
   }
 }

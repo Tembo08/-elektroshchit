@@ -63,6 +63,9 @@ class NormsLoader {
     final groupingLimits = grouping['limits'] is YamlMap
         ? _map(grouping['limits'], 'grouping_rules.limits')
         : YamlMap();
+    final demand = grouping['demand_factors'] is YamlMap
+        ? _map(grouping['demand_factors'], 'demand_factors')
+        : YamlMap();
     final selection = breakersMap['selection_rules'] is YamlMap
         ? _map(breakersMap['selection_rules'], 'selection_rules')
         : YamlMap();
@@ -179,6 +182,9 @@ class NormsLoader {
       minSectionLighting: _doubleOr(minSections['lighting'], 1.5),
       minSectionSockets: _doubleOr(minSections['sockets'], 2.5),
       minSectionPowerful: _doubleOr(minSections['powerful'], 2.5),
+      demandFactorSockets: _doubleOr(demand['sockets'], 0.7),
+      demandFactorLighting: _doubleOr(demand['lighting'], 1.0),
+      demandFactorPowerful: _doubleOr(demand['powerful'], 1.0),
     );
   }
 

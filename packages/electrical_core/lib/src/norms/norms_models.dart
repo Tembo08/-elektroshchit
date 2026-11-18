@@ -70,6 +70,11 @@ class NormsCatalog {
   final double minSectionLighting;
   final double minSectionSockets;
   final double minSectionPowerful;
+
+  /// Коэффициенты спроса по типу нагрузки (0..1).
+  final double demandFactorSockets;
+  final double demandFactorLighting;
+  final double demandFactorPowerful;
   final List<int> rcdRatings;
   final int bathRcdMa;
   final int fireRcdMa;
@@ -111,6 +116,9 @@ class NormsCatalog {
     this.minSectionLighting = 1.5,
     this.minSectionSockets = 2.5,
     this.minSectionPowerful = 2.5,
+    this.demandFactorSockets = 0.7,
+    this.demandFactorLighting = 1.0,
+    this.demandFactorPowerful = 1.0,
     this.rcdRatings = const [16, 25, 32, 40, 50, 63, 80, 100],
     this.bathRcdMa = 10,
     this.fireRcdMa = 100,

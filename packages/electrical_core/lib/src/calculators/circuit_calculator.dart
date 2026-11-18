@@ -278,16 +278,23 @@ class CircuitCalculator {
     final rcdDin = devices.fold<int>(0, (s, d) => s + d.dinModules);
     final totalDin = groupsDin + rcdDin + inputGroup.dinModules;
 
-    final totalPower = groups.fold<double>(0, (s, g) => s + g.totalPowerKw);
+    // Установленная мощность — всё, что может быть включено одновременно
+    // «по паспорту». Расчётная — с коэффициентами спроса: именно она
+    // определяет, хватает ли ТУ (розетки редко загружены все сразу).
+    final installedPower = groups.fold<double>(0, (s, g) => s + g.totalPowerKw);
+    final calculatedPower =
+        groups.fold<double>(0, (s, g) => s + g.demandPowerKw);
     final loadFactor = project.allowedPowerKw > 0
-        ? totalPower / project.allowedPowerKw
+        ? calculatedPower / project.allowedPowerKw
         : 0.0;
-    final isInputSufficient = totalPower <= project.allowedPowerKw;
+    final isInputSufficient = calculatedPower <= project.allowedPowerKw;
 
     if (!isInputSufficient) {
       warnings.add(
-        'Суммарная расчётная нагрузка (${totalPower.toStringAsFixed(1)} кВт) '
-        'превышает разрешённую мощность по ТУ (${project.allowedPowerKw} кВт)',
+        'Расчётная нагрузка (${calculatedPower.toStringAsFixed(1)} кВт, '
+        'установленная ${installedPower.toStringAsFixed(1)} кВт) '
+        'превышает разрешённую мощность по ТУ ('
+        '${project.allowedPowerKw.toStringAsFixed(1)} кВт)',
       );
     }
 
@@ -305,7 +312,8 @@ class CircuitCalculator {
       recommendedPanelModules: recommendedDin,
       recommendedPanelSize: _panelSizeLabel(recommendedDin),
       groups: groups,
-      totalCalculatedPowerKw: totalPower,
+      installedPowerKw: installedPower,
+      totalCalculatedPowerKw: calculatedPower,
       loadFactor: loadFactor,
       isInputSufficient: isInputSufficient,
       materials: _buildMaterials(groups, inputGroup, devices),
@@ -332,7 +340,9 @@ class CircuitCalculator {
     );
   }
 
-  /// Суммарная мощность по фазам. Трёхфазные линии делятся на три фазы.
+  /// Суммарная мощность по фазам (с коэффициентами спроса — так же, как
+  /// общий итог, иначе баланс и сводка расходятся).
+  /// Трёхфазные линии делятся на три фазы.
   PhaseBalance? _phaseBalance(
     List<CircuitGroup> groups,
     PhaseSystem phaseSystem,
@@ -342,7 +352,7 @@ class CircuitCalculator {
     var l2 = 0.0;
     var l3 = 0.0;
     for (final g in groups) {
-      final p = g.totalPowerKw;
+      final p = g.demandPowerKw;
       switch (g.phase) {
         case 'L1':
           l1 += p;
@@ -404,6 +414,7 @@ class CircuitCalculator {
       parentRcdId: rcdId,
       parentRcdPoles: null,
       hasRcd: false,
+      demandFactor: norms.demandFactorSockets,
     );
   }
 
@@ -459,6 +470,7 @@ class CircuitCalculator {
       warnings: warnings,
       parentRcdId: rcdId,
       hasRcd: false,
+      demandFactor: norms.demandFactorLighting,
     );
   }
 
@@ -544,6 +556,7 @@ class CircuitCalculator {
           : null,
       warnings: warnings,
       poles: phases,
+      demandFactor: norms.demandFactorPowerful,
     );
   }
 

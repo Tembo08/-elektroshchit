@@ -175,7 +175,7 @@ class ResultScreen extends StatelessWidget {
                   context,
                   panel.totalCalculatedPowerKw.toStringAsFixed(1),
                   'кВт',
-                  'Расчётная мощность',
+                  'Расчётная (с коэф. спроса)',
                 ),
                 _metric(
                   context,
@@ -203,6 +203,18 @@ class ResultScreen extends StatelessWidget {
                 ),
               ],
             ),
+            if (panel.demandSavingKw > 0.05) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Установленная ${panel.installedPowerKw.toStringAsFixed(1)} кВт '
+                '· коэффициент спроса даёт −${panel.demandSavingKw.toStringAsFixed(1)} кВт',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.3,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
             if (input != null) ...[
               const SizedBox(height: 12),
               const Divider(height: 1),

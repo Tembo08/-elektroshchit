@@ -609,6 +609,118 @@ void main() {
     });
   });
 
+  group('коэффициент спроса', () {
+    test('розетки считаются с коэффициентом 0.7, свет и силовые — как есть', () {
+      final r = calc.calculate(
+        project(powerKw: 15, rooms: [
+          room('Зал', RoomType.livingRoom, [
+            c('s', ConsumerType.socket, qty: 30), // 3.0 кВт
+            c('l', ConsumerType.lightPoint, qty: 20), // 1.0 кВт
+            c('b', ConsumerType.boiler, power: 2.0, powerful: true), // 2.0
+          ]),
+        ]),
+        socketLines: 1,
+        lightingLines: 1,
+      );
+
+      // 30 розеток могут уйти на несколько линий — суммируем всю группу.
+      final socketGroups =
+          r.groups.where((g) => g.name.contains('Розетки')).toList();
+      final socketsInstalled =
+          socketGroups.fold<double>(0, (a, g) => a + g.totalPowerKw);
+      final socketsDemand =
+          socketGroups.fold<double>(0, (a, g) => a + g.demandPowerKw);
+      final lights = r.groups.firstWhere((g) => g.name.contains('Освещение'));
+      final boiler = r.groups.firstWhere((g) => g.name.contains('boiler'));
+
+      expect(socketsInstalled, closeTo(3.0, 0.01));
+      expect(socketsDemand, closeTo(2.1, 0.01));
+      expect(lights.demandPowerKw, closeTo(lights.totalPowerKw, 0.01));
+      expect(boiler.demandPowerKw, closeTo(2.0, 0.01));
+
+      // Установленная — сумма как есть, расчётная — с коэффициентами.
+      expect(r.panel.installedPowerKw, closeTo(6.0, 0.01));
+      expect(r.panel.totalCalculatedPowerKw, closeTo(5.1, 0.01));
+      expect(r.panel.demandSavingKw, closeTo(0.9, 0.01));
+    });
+
+    test('двушка с ТУ 10 кВт больше не ловит ложное «превышение»', () {
+      // 30 розеток (3 кВт) + варочная 7 кВт + свет 0.5 кВт.
+      // Установленная = 10.5 кВт > ТУ, но розетки одновременно не работают:
+      // расчётная = 7 + 3*0.7 + 0.5 = 9.6 кВт — в ТУ укладываемся.
+      final r = calc.calculate(
+        project(powerKw: 10, rooms: [
+          room('Кухня', RoomType.kitchen, [
+            c('s1', ConsumerType.socket, qty: 12),
+            c('p1', ConsumerType.electricStove,
+                power: 7.0, powerful: true, rcd: true),
+          ]),
+          room('Ванная', RoomType.combinedBathroom, [
+            c('s2', ConsumerType.socket, qty: 3),
+          ]),
+          room('Спальня', RoomType.bedroom, [
+            c('s3', ConsumerType.socket, qty: 8),
+            c('l', ConsumerType.lightPoint, qty: 10),
+          ]),
+          room('Зал', RoomType.livingRoom, [c('s4', ConsumerType.socket, qty: 7)]),
+        ]),
+        socketLines: 2,
+        lightingLines: 1,
+      );
+
+      expect(r.panel.installedPowerKw, closeTo(10.5, 0.05));
+      expect(r.panel.totalCalculatedPowerKw, closeTo(9.6, 0.05));
+      expect(r.panel.installedPowerKw, greaterThan(10));
+      expect(r.panel.isInputSufficient, isTrue);
+      expect(
+        r.warnings.any((w) => w.contains('превышает разрешённую мощность')),
+        isFalse,
+      );
+    });
+
+    test('если силовые приборы реально не влезают — превышение остаётся', () {
+      // 7 + 3.5 + 2 кВт приборов = 12.5 кВт: коэффициент спроса не спасает,
+      // при ТУ 10 кВт приложение обязано сказать «не хватает».
+      final r = calc.calculate(
+        project(powerKw: 10, rooms: [
+          room('Кухня', RoomType.kitchen, [
+            c('p1', ConsumerType.electricStove, power: 7.0, powerful: true),
+            c('p2', ConsumerType.oven, power: 3.5, powerful: true),
+            c('p3', ConsumerType.dishwasher, power: 2.0, powerful: true),
+          ]),
+        ]),
+      );
+      expect(r.panel.isInputSufficient, isFalse);
+      expect(r.panel.totalCalculatedPowerKw, closeTo(12.5, 0.05));
+      expect(
+        r.warnings.any((w) => w.contains('превышает разрешённую мощность')),
+        isTrue,
+      );
+    });
+
+    test('коэффициенты берутся из норм, а не из кода', () {
+      expect(norms.demandFactorSockets, 0.7);
+      expect(norms.demandFactorLighting, 1.0);
+      expect(norms.demandFactorPowerful, 1.0);
+    });
+
+    test('предупреждение о превышении ТУ использует расчётную мощность', () {
+      final r = calc.calculate(
+        project(powerKw: 4, rooms: [
+          room('Кухня', RoomType.kitchen, [
+            c('p', ConsumerType.electricStove, power: 7.0, powerful: true),
+          ]),
+        ]),
+      );
+      expect(r.panel.isInputSufficient, isFalse);
+      final w = r.warnings.firstWhere(
+        (w) => w.contains('превышает разрешённую мощность'),
+      );
+      expect(w, contains('Расчётная нагрузка'));
+      expect(w, contains('установленная'));
+    });
+  });
+
   group('фазы и мощность', () {
     test('3 фазы: однофазные линии раскиданы по L1/L2/L3', () {
       final r = calc.calculate(
