@@ -39,13 +39,24 @@ class _PanelVariantState extends State<PanelVariant>
   AnimationController? _controller;
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.animate) {
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Уважаем системную настройку «уменьшить движение» и отключаем анимацию
+    // в тестах/скриншотах: иначе бесконечная анимация мешает pumpAndSettle.
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final wantAnimation = widget.animate && !reduceMotion;
+
+    if (wantAnimation && _controller == null) {
+      // Два прохода прорисовки и стоп: провода остаются нарисованными.
+      // Бесконечный repeat «дышал» бы, но мешает pumpAndSettle в тестах
+      // и зря жжёт батарею на телефоне.
       _controller = AnimationController(
         vsync: this,
-        duration: const Duration(milliseconds: 2600),
-      )..repeat(reverse: true);
+        duration: const Duration(milliseconds: 2200),
+      )..repeat(reverse: false, count: 2);
+    } else if (!wantAnimation && _controller != null) {
+      _controller!.dispose();
+      _controller = null;
     }
   }
 
@@ -57,26 +68,50 @@ class _PanelVariantState extends State<PanelVariant>
 
   @override
   Widget build(BuildContext context) {
-    final painter = _VariantPainter(
-      widget.style,
-      widget.fontFamily,
-      widget.progress ?? 1,
+    // Статичная часть — в RepaintBoundary: при анимации проводов она
+    // не перерисовывается, поэтому нет лишней нагрузки.
+    final base = RepaintBoundary(
+      child: CustomPaint(
+        painter: _VariantPainter(
+          widget.style,
+          widget.fontFamily,
+          1,
+          PanelLayer.base,
+        ),
+        size: Size.infinite,
+      ),
     );
+
+    final wires = _controller == null
+        ? CustomPaint(
+            painter: _VariantPainter(
+              widget.style,
+              widget.fontFamily,
+              widget.progress ?? 1,
+              PanelLayer.wires,
+            ),
+            size: Size.infinite,
+          )
+        : AnimatedBuilder(
+            animation: _controller!,
+            builder: (context, _) => CustomPaint(
+              painter: _VariantPainter(
+                widget.style,
+                widget.fontFamily,
+                Curves.easeInOut.transform(_controller!.value) * 0.96 + 0.04,
+                PanelLayer.wires,
+              ),
+              size: Size.infinite,
+            ),
+          );
+
     return SizedBox(
       width: widget.width,
       height: widget.width * 1.1,
-      child: _controller == null
-          ? CustomPaint(painter: painter)
-          : AnimatedBuilder(
-              animation: _controller!,
-              builder: (context, _) => CustomPaint(
-                painter: _VariantPainter(
-                  widget.style,
-                  widget.fontFamily,
-                  Curves.easeInOut.transform(_controller!.value) * 0.98 + 0.02,
-                ),
-              ),
-            ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [base, wires],
+      ),
     );
   }
 }
@@ -231,30 +266,35 @@ _Palette _paletteFor(PanelStyle style) {
   }
 }
 
+/// Какой слой рисует painter: статичную часть щита, только провода
+/// или всё вместе. Разделение нужно, чтобы анимация проводов не
+/// перерисовывала весь щит каждый кадр.
+enum PanelLayer { all, base, wires }
+
 class _VariantPainter extends CustomPainter {
   final PanelStyle style;
   final String? fontFamily;
   final double wireProgress;
-  _VariantPainter(this.style, this.fontFamily, this.wireProgress);
+  final PanelLayer layer;
+
+  _VariantPainter(this.style, this.fontFamily, this.wireProgress,
+      [this.layer = PanelLayer.all]);
 
   static const designW = 300.0;
   static const designH = 330.0;
 
   _Palette get p => _paletteFor(style);
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scale = math.min(size.width / (designW + 24), size.height / (designH + 24));
-    canvas.save();
+  /// Общая система координат для всех слоёв — иначе провода «съедут»
+  /// относительно корпуса.
+  void _applyTransform(Canvas canvas, Size size) {
+    final scale =
+        math.min(size.width / (designW + 24), size.height / (designH + 24));
     canvas.translate(
       (size.width - (designW + 24) * scale) / 2,
       (size.height - (designH + 24) * scale) / 2,
     );
     canvas.scale(scale);
-
-    _drawBackground(canvas);
-
-    canvas.save();
     canvas.translate(12, 12);
     if (style == PanelStyle.isometric) {
       final m = Matrix4.identity()
@@ -264,15 +304,42 @@ class _VariantPainter extends CustomPainter {
       canvas.transform(m.storage);
       canvas.translate(6, 2);
     }
-    _drawEnclosure(canvas);
-    _drawBusbars(canvas);
-    _drawBuses(canvas);
-    _drawTopRow(canvas);
-    _drawRail(canvas, railY: 118, breakers: 6);
-    _drawRail(canvas, railY: 206, breakers: 5);
-    _drawWires(canvas);
-    _drawLabels(canvas);
-    canvas.restore();
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    _applyTransform(canvas, size);
+
+    if (layer == PanelLayer.base) {
+      // фон рисуем в исходных координатах — до поворота изометрии
+      canvas.restore();
+      canvas.save();
+      _drawBackground(canvas);
+      _applyTransform(canvas, size);
+      _drawEnclosure(canvas);
+      _drawBusbars(canvas);
+      _drawBuses(canvas);
+      _drawTopRow(canvas);
+      _drawRail(canvas, railY: 118, breakers: 6);
+      _drawRail(canvas, railY: 206, breakers: 5);
+      _drawLabels(canvas);
+    } else if (layer == PanelLayer.wires) {
+      _drawWires(canvas);
+    } else {
+      canvas.restore();
+      canvas.save();
+      _drawBackground(canvas);
+      _applyTransform(canvas, size);
+      _drawEnclosure(canvas);
+      _drawBusbars(canvas);
+      _drawBuses(canvas);
+      _drawTopRow(canvas);
+      _drawRail(canvas, railY: 118, breakers: 6);
+      _drawRail(canvas, railY: 206, breakers: 5);
+      _drawWires(canvas);
+      _drawLabels(canvas);
+    }
 
     canvas.restore();
   }
@@ -882,5 +949,6 @@ class _VariantPainter extends CustomPainter {
   bool shouldRepaint(covariant _VariantPainter old) =>
       old.style != style ||
       old.fontFamily != fontFamily ||
-      old.wireProgress != wireProgress;
+      old.wireProgress != wireProgress ||
+      old.layer != layer;
 }

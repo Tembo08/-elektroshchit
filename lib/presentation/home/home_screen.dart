@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/project_draft.dart';
 import '../../core/providers.dart';
 import '../project/object_type_screen.dart';
-import 'home_hero_variants.dart';
+import 'panel_styles.dart';
 import '../tips/tips_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -71,10 +71,7 @@ class HomeScreen extends ConsumerWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const HomeHero(
-                        variant: HomeHeroVariant.panel,
-                        subtitle: 'Посчитайте щит за пару минут',
-                      ),
+                      const _NeonHero(),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -111,6 +108,76 @@ class HomeScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Тёмная «витрина» с неоновым щитом. Тёмный фон задаётся намеренно:
+/// неон рассчитан на контраст, на белом он выцветает.
+class _NeonHero extends StatelessWidget {
+  const _NeonHero();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 246,
+          height: 246 * 1.1,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: const Color(0xFF07090C),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: const Color(0xFF27E0C8).withValues(alpha: 0.22),
+              width: 1.1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF27E0C8).withValues(alpha: 0.16),
+                blurRadius: 34,
+                spreadRadius: 2,
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 18,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: const PanelVariant(
+            style: PanelStyle.neon,
+            width: 246,
+            animate: true,
+          ),
+        ),
+        const SizedBox(height: 26),
+        Text(
+          'Электрощит',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 34,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.6,
+            color: scheme.onSurface,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Text(
+            'Посчитайте щит за пару минут',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16.5,
+              height: 1.35,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
