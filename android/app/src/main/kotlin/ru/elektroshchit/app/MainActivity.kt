@@ -1,4 +1,4 @@
-package com.example.elektroshchit
+package ru.elektroshchit.app
 
 import io.flutter.embedding.android.FlutterActivity
 

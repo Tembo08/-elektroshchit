@@ -6,6 +6,7 @@ import '../../core/project_draft.dart';
 import '../../core/providers.dart';
 import '../project/object_type_screen.dart';
 import '../projects/projects_screen.dart';
+import '../about/about_screen.dart';
 import 'panel_styles.dart';
 import '../tips/tips_screen.dart';
 
@@ -109,6 +110,18 @@ class HomeScreen extends ConsumerWidget {
                             },
                             icon: const Icon(Icons.menu_book_outlined),
                             label: const Text('Шпаргалка электрика'),
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const AboutScreen(),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.info_outline),
+                            label: const Text('О приложении'),
                           ),
                           const SizedBox(height: 12),
                         ],

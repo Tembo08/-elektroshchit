@@ -1,5 +1,7 @@
 name: elektroshchit
-description: "A new Flutter project."
+description: >-
+  Расчёт квартирного и домового электрощита: линии, автоматы, УЗО,
+  кабель, падение напряжения, спецификация и PDF-отчёт.
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

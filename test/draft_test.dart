@@ -12,6 +12,7 @@ import 'package:elektroshchit/main.dart';
 import 'package:elektroshchit/core/template_mapper.dart';
 import 'package:elektroshchit/presentation/checklist/checklist_screen.dart';
 import 'package:elektroshchit/presentation/project/input_config_screen.dart';
+import 'package:elektroshchit/presentation/about/about_screen.dart';
 import 'package:elektroshchit/presentation/project/object_type_screen.dart';
 import 'package:elektroshchit/presentation/templates/templates_screen.dart';
 import 'package:elektroshchit/presentation/project/overview_screen.dart';
@@ -141,6 +142,17 @@ void main() {
     expect(find.text('150'), findsOneWidget);
     expect(find.text('2.8'), findsOneWidget);
     expect(find.text('TT'), findsOneWidget);
+  });
+
+  testWidgets('экран «О приложении» показывает политику и версию',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: AboutScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Электрощит'), findsOneWidget);
+    expect(find.textContaining('Версия 1.0.0'), findsOneWidget);
+    expect(find.textContaining('не собирает и не передаёт'), findsOneWidget);
+    expect(find.textContaining('черновик'), findsOneWidget);
   });
 
   testWidgets('экран комнат берёт список из черновика', (tester) async {
