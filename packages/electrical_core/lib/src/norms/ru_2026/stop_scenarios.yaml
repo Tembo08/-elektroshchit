@@ -40,6 +40,11 @@ warnings:
     message: "Рекомендуется противопожарное УЗО 100 мА на вводе"
     check: "optional"
 
+  - id: tt_requires_rcd
+    severity: warning
+    message: "Система заземления TT: УЗО обязательно на каждой линии"
+    check: "grounding == TT && !has_rcd"
+
   - id: draft_notice
     severity: info
     message: "Результат является черновиком и требует проверки квалифицированным электриком"

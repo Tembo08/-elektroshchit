@@ -340,6 +340,19 @@ class CircuitCalculator {
       );
     }
 
+    // TT: полагаться на автомат нельзя, каждая линия обязана быть под УЗО.
+    if (project.groundingSystem == GroundingSystem.tt) {
+      final withoutRcd = groups.where(
+        (g) => !g.hasRcd && g.parentRcdId == null,
+      );
+      if (withoutRcd.isNotEmpty) {
+        report(
+          'tt_requires_rcd',
+          details: withoutRcd.map((g) => g.name).take(3).join(', '),
+        );
+      }
+    }
+
     if (project.allowedPowerKw > 0 &&
         loadFactor > 0.9 &&
         isInputSufficient) {

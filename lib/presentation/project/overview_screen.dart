@@ -115,22 +115,24 @@ class OverviewScreen extends ConsumerWidget {
         id: d.id,
         name: d.name,
         type: d.type,
-        area: 10,
+        area: d.area > 0 ? d.area : 0,
         consumers: consumers,
         cableLengthM: d.cableLengthM,
       );
     }).toList();
 
     final objectType = draft.objectType ?? core.ObjectType.apartment;
+    final fallbackName =
+        objectType == core.ObjectType.apartment ? 'Квартира' : 'Дом';
     return core.Project(
       id: 'p_${now.microsecondsSinceEpoch}',
-      name: objectType == core.ObjectType.apartment ? 'Квартира' : 'Дом',
+      name: draft.name.trim().isEmpty ? fallbackName : draft.name.trim(),
       objectType: objectType,
       phaseSystem: draft.phaseSystem,
       allowedPowerKw: draft.allowedPowerKw > 0 ? draft.allowedPowerKw : 10,
-      groundingSystem: core.GroundingSystem.tnCs,
-      totalArea: 50,
-      ceilingHeight: 2.7,
+      groundingSystem: draft.groundingSystem,
+      totalArea: draft.totalArea > 0 ? draft.totalArea : 0,
+      ceilingHeight: draft.ceilingHeight > 0 ? draft.ceilingHeight : 0,
       lightingGrouping: draft.lightingLines <= 1
           ? core.LightingGrouping.singleLine
           : (draft.lightingLines == 2
@@ -256,11 +258,24 @@ class OverviewScreen extends ConsumerWidget {
                       lightingLines: draft.lightingLines,
                       socketLines: draft.socketLines,
                     );
+                    final details = <String>[
+                      if (project.totalArea > 0)
+                        '${project.totalArea.toStringAsFixed(0)} м²',
+                      if (project.ceilingHeight > 0)
+                        'потолки ${project.ceilingHeight.toStringAsFixed(1)} м',
+                      switch (project.groundingSystem) {
+                        core.GroundingSystem.tnCs => 'TN-C-S',
+                        core.GroundingSystem.tnS => 'TN-S',
+                        core.GroundingSystem.tt => 'TT',
+                      },
+                      'ТУ ${project.allowedPowerKw.toStringAsFixed(0)} кВт',
+                    ].join(' · ');
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => ResultScreen(
                           result: result,
                           projectName: project.name,
+                          projectDetails: details,
                         ),
                       ),
                     );

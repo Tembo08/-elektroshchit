@@ -9,10 +9,14 @@ class ResultScreen extends StatelessWidget {
   final CalculationResult result;
   final String projectName;
 
+  /// Краткая карточка объекта: площадь, потолки, заземление.
+  final String? projectDetails;
+
   const ResultScreen({
     super.key,
     required this.result,
     required this.projectName,
+    this.projectDetails,
   });
 
   @override
@@ -42,6 +46,28 @@ class ResultScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
+          if (projectDetails != null) ...[
+            Row(
+              children: [
+                Icon(
+                  Icons.home_work_outlined,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    projectDetails!,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
           _summaryCard(context, panel, input),
           if (result.phaseBalance != null) ...[
             const SizedBox(height: 12),

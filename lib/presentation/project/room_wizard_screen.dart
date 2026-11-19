@@ -27,6 +27,7 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
   int _switches = 1;
   int _mirrorSocket = 0; // розетка у зеркала (ванная)
   late TextEditingController _lengthController;
+  late TextEditingController _areaController;
 
   final Map<core.ConsumerType, ApplianceSpec> _dedicated = {};
   final Map<core.ConsumerType, TextEditingController> _powerControllers = {};
@@ -51,6 +52,9 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
     final e = widget.existing;
     _type = e?.type ?? widget.initialType ?? core.RoomType.livingRoom;
     _nameController = TextEditingController(text: e?.name ?? _typeLabel(_type));
+    _areaController = TextEditingController(
+      text: (e != null && e.area > 0) ? e.area.toStringAsFixed(0) : '',
+    );
     _lengthController = TextEditingController(
       text: (e != null && e.cableLengthM > 0)
           ? e.cableLengthM.toStringAsFixed(0)
@@ -172,6 +176,7 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
       dedicated: Map.of(_dedicated),
       cableLengthM:
           double.tryParse(_lengthController.text.replaceAll(',', '.')) ?? 0,
+      area: double.tryParse(_areaController.text.replaceAll(',', '.')) ?? 0,
     );
   }
 
@@ -237,6 +242,7 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
   void dispose() {
     _nameController.dispose();
     _lengthController.dispose();
+    _areaController.dispose();
     for (final c in _powerControllers.values) {
       c.dispose();
     }
@@ -294,6 +300,18 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            TextField(
+              controller: _areaController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Площадь комнаты, м²',
+                helperText: 'Для спецификации и плана',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => _dirty = true,
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: _lengthController,
               keyboardType:

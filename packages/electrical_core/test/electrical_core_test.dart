@@ -990,6 +990,49 @@ void main() {
     });
   });
 
+  group('система заземления', () {
+    test('TT требует УЗО на каждой линии', () {
+      final r = calc.calculate(
+        Project(
+          id: 'p',
+          name: 'Дом',
+          objectType: ObjectType.privateHouse,
+          phaseSystem: PhaseSystem.single,
+          allowedPowerKw: 15,
+          groundingSystem: GroundingSystem.tt,
+          totalArea: 100,
+          ceilingHeight: 2.7,
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
+          rooms: [
+            room('Котельная', RoomType.technical, [
+              // Силовой прибор без флага requiresRcd и не в мокрой комнате
+              c('b', ConsumerType.boiler, power: 9.0, powerful: true),
+            ]),
+          ],
+        ),
+      );
+      expect(
+        r.issues.any((i) => i.id == 'tt_requires_rcd'),
+        isTrue,
+      );
+    });
+
+    test('TN-C-S не требует УЗО на силовой линии', () {
+      final r = calc.calculate(
+        project(powerKw: 15, rooms: [
+          room('Котельная', RoomType.technical, [
+            c('b', ConsumerType.boiler, power: 9.0, powerful: true),
+          ]),
+        ]),
+      );
+      expect(
+        r.issues.any((i) => i.id == 'tt_requires_rcd'),
+        isFalse,
+      );
+    });
+  });
+
   group('инварианты щита', () {
     test('ни одна линия не выходит за свой автомат и сечения', () {
       final r = calc.calculate(

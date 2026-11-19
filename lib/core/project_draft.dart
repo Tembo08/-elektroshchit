@@ -40,6 +40,9 @@ class RoomDraft {
   /// Длина трассы от щита до комнаты, м. 0 — неизвестна.
   final double cableLengthM;
 
+  /// Площадь комнаты, м². 0 — неизвестна.
+  final double area;
+
   const RoomDraft({
     required this.id,
     required this.name,
@@ -50,6 +53,7 @@ class RoomDraft {
     this.mirrorSockets = 0,
     this.dedicated = const {},
     this.cableLengthM = 0,
+    this.area = 0,
   });
 
   int get totalSockets {
@@ -70,6 +74,7 @@ class RoomDraft {
     int? mirrorSockets,
     Map<core.ConsumerType, ApplianceSpec>? dedicated,
     double? cableLengthM,
+    double? area,
   }) {
     return RoomDraft(
       id: id,
@@ -81,13 +86,20 @@ class RoomDraft {
       mirrorSockets: mirrorSockets ?? this.mirrorSockets,
       dedicated: dedicated ?? this.dedicated,
       cableLengthM: cableLengthM ?? this.cableLengthM,
+      area: area ?? this.area,
     );
   }
 }
 
 /// Черновик всего проекта: живёт в Riverpod, поэтому «назад» ничего не стирает.
 class ProjectDraft {
+  /// Название объекта — как в договоре («Квартира, Ленина 5»).
+  final String name;
+
   final core.ObjectType? objectType;
+  final double totalArea;
+  final double ceilingHeight;
+  final core.GroundingSystem groundingSystem;
   final core.PhaseSystem phaseSystem;
 
   /// Разрешённая мощность по ТУ. 0 — пользователь ещё не ввёл.
@@ -99,6 +111,10 @@ class ProjectDraft {
   final List<RoomDraft> rooms;
 
   const ProjectDraft({
+    this.name = '',
+    this.totalArea = 0,
+    this.ceilingHeight = 0,
+    this.groundingSystem = core.GroundingSystem.tnCs,
     this.objectType,
     this.phaseSystem = core.PhaseSystem.single,
     this.allowedPowerKw = 0,
@@ -111,7 +127,11 @@ class ProjectDraft {
   bool get hasProject => objectType != null;
 
   ProjectDraft copyWith({
+    String? name,
     core.ObjectType? objectType,
+    double? totalArea,
+    double? ceilingHeight,
+    core.GroundingSystem? groundingSystem,
     core.PhaseSystem? phaseSystem,
     double? allowedPowerKw,
     int? inputBreakerAmps,
@@ -120,6 +140,10 @@ class ProjectDraft {
     List<RoomDraft>? rooms,
   }) {
     return ProjectDraft(
+      name: name ?? this.name,
+      totalArea: totalArea ?? this.totalArea,
+      ceilingHeight: ceilingHeight ?? this.ceilingHeight,
+      groundingSystem: groundingSystem ?? this.groundingSystem,
       objectType: objectType ?? this.objectType,
       phaseSystem: phaseSystem ?? this.phaseSystem,
       allowedPowerKw: allowedPowerKw ?? this.allowedPowerKw,
@@ -158,6 +182,21 @@ class ProjectDraftNotifier extends Notifier<ProjectDraft> {
   void removeRoom(String id) {
     state = state.copyWith(
       rooms: state.rooms.where((r) => r.id != id).toList(),
+    );
+  }
+
+  /// Название, площадь, высота потолков и система заземления.
+  void setMeta({
+    String? name,
+    double? totalArea,
+    double? ceilingHeight,
+    core.GroundingSystem? groundingSystem,
+  }) {
+    state = state.copyWith(
+      name: name,
+      totalArea: totalArea,
+      ceilingHeight: ceilingHeight,
+      groundingSystem: groundingSystem,
     );
   }
 

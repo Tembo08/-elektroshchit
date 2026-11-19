@@ -12,6 +12,7 @@ import 'package:elektroshchit/main.dart';
 import 'package:elektroshchit/core/template_mapper.dart';
 import 'package:elektroshchit/presentation/checklist/checklist_screen.dart';
 import 'package:elektroshchit/presentation/project/input_config_screen.dart';
+import 'package:elektroshchit/presentation/project/object_type_screen.dart';
 import 'package:elektroshchit/presentation/templates/templates_screen.dart';
 import 'package:elektroshchit/presentation/project/overview_screen.dart';
 import 'package:elektroshchit/presentation/project/room_wizard_screen.dart';
@@ -82,6 +83,64 @@ void main() {
     expect(container.read(projectDraftProvider).rooms, isEmpty);
     n.addRoom(d.rooms.single);
     expect(container.read(projectDraftProvider).rooms, hasLength(1));
+  });
+
+  test('метаданные объекта сохраняются в черновике', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final n = container.read(projectDraftProvider.notifier);
+
+    n.setMeta(
+      name: 'Квартира, Ленина 5',
+      totalArea: 62,
+      ceilingHeight: 2.75,
+      groundingSystem: GroundingSystem.tt,
+    );
+
+    final d = container.read(projectDraftProvider);
+    expect(d.name, 'Квартира, Ленина 5');
+    expect(d.totalArea, 62);
+    expect(d.ceilingHeight, 2.75);
+    expect(d.groundingSystem, GroundingSystem.tt);
+
+    // Изменение одного поля не сбрасывает остальные.
+    n.setMeta(totalArea: 68);
+    expect(container.read(projectDraftProvider).totalArea, 68);
+    expect(container.read(projectDraftProvider).name, 'Квартира, Ленина 5');
+    expect(container.read(projectDraftProvider).groundingSystem,
+        GroundingSystem.tt);
+  });
+
+  testWidgets('экран «Объект» показывает сохранённые метаданные',
+      (tester) async {
+    tester.view.physicalSize = const Size(900, 1800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final n = container.read(projectDraftProvider.notifier);
+    n.startProject(ObjectType.privateHouse, PhaseSystem.three);
+    n.setMeta(
+      name: 'Дом в Сосновке',
+      totalArea: 150,
+      ceilingHeight: 2.8,
+      groundingSystem: GroundingSystem.tt,
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(home: ObjectTypeScreen(norms: norms)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Дом в Сосновке'), findsOneWidget);
+    expect(find.text('150'), findsOneWidget);
+    expect(find.text('2.8'), findsOneWidget);
+    expect(find.text('TT'), findsOneWidget);
   });
 
   testWidgets('экран комнат берёт список из черновика', (tester) async {
@@ -432,6 +491,13 @@ void main() {
   });
 
   testWidgets('новый проект начинается с чистого черновика', (tester) async {
+    // Экран «Объект» стал длиннее (название, площадь, потолки, заземление),
+    // поэтому даём тесту высокое окно, чтобы кнопка «Далее» была видна.
+    tester.view.physicalSize = const Size(1000, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final container = ProviderContainer(
       overrides: [normsProvider.overrideWith((ref) async => norms)],
     );
