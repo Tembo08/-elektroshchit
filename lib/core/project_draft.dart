@@ -214,6 +214,9 @@ class ProjectDraftNotifier extends Notifier<ProjectDraft> {
     );
   }
 
+  /// Полностью заменяет черновик (открытие сохранённого проекта).
+  void replaceDraft(ProjectDraft draft) => state = draft;
+
   void reset() => state = const ProjectDraft();
 }
 

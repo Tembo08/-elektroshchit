@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/project_draft.dart';
 import '../../core/providers.dart';
 import '../project/object_type_screen.dart';
+import '../projects/projects_screen.dart';
 import 'panel_styles.dart';
 import '../tips/tips_screen.dart';
 
@@ -86,6 +87,18 @@ class HomeScreen extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => ProjectsScreen(norms: norms),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.folder_open_outlined),
+                            label: const Text('Мои проекты'),
+                          ),
+                          const SizedBox(height: 10),
                           OutlinedButton.icon(
                             onPressed: () {
                               Navigator.of(context).push(

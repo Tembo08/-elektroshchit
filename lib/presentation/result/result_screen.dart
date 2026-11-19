@@ -1,10 +1,15 @@
-import 'package:electrical_core/electrical_core.dart';
+// Consumer из ядра и Consumer из Riverpod конфликтуют по имени —
+// для виджетов берём Riverpod, модель потребителя импортируем как core.
+import 'package:electrical_core/electrical_core.dart' hide Consumer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 
+import '../../core/project_draft.dart';
+import '../projects/projects_screen.dart'
+    show projectStoreProvider, savedProjectsProvider;
 import '../../export/pdf_exporter.dart';
-
 import '../../core/theme.dart';
 import '../../core/tips.dart';
 import '../widgets/tip_card.dart';
@@ -37,6 +42,13 @@ class ResultScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(projectName),
         actions: [
+          Consumer(
+            builder: (context, ref, _) => IconButton(
+              tooltip: 'Сохранить проект',
+              icon: const Icon(Icons.save_outlined),
+              onPressed: () => _save(context, ref),
+            ),
+          ),
           IconButton(
             tooltip: 'Экспорт PDF',
             icon: const Icon(Icons.picture_as_pdf_outlined),
@@ -157,6 +169,34 @@ class ResultScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Сохраняет текущий черновик в список проектов.
+  Future<void> _save(BuildContext context, WidgetRef ref) async {
+    final draft = ref.read(projectDraftProvider);
+    if (draft.rooms.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('В проекте нет комнат — сохранять нечего')),
+      );
+      return;
+    }
+    final saved = await ref.read(projectStoreProvider).upsert(draft: draft);
+    ref.invalidate(savedProjectsProvider);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Проект «${saved.name}» сохранён'),
+          action: SnackBarAction(
+            label: 'К списку',
+            onPressed: () {
+              // Норм под рукой нет — открываем список через главную.
+              Navigator.of(context).popUntil((r) => r.isFirst);
+            },
+          ),
+        ),
+      );
   }
 
   /// Готовит PDF и отдаёт в системное «Поделиться / Сохранить».
