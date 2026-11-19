@@ -2,7 +2,10 @@
 // для виджетов берём Riverpod, модель потребителя импортируем как core.
 import 'package:electrical_core/electrical_core.dart' hide Consumer;
 import 'package:flutter/material.dart';
+import 'dart:io';
+
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 
@@ -199,6 +202,29 @@ class ResultScreen extends StatelessWidget {
       );
   }
 
+  static String _stamp() {
+    final n = DateTime.now();
+    return '${n.year}${n.month.toString().padLeft(2, '0')}'
+        '${n.day.toString().padLeft(2, '0')}-'
+        '${n.hour.toString().padLeft(2, '0')}'
+        '${n.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// Открывает файл системным приложением (десктоп).
+  void _openPath(String path) {
+    try {
+      if (Platform.isLinux) {
+        Process.run('xdg-open', [path]);
+      } else if (Platform.isMacOS) {
+        Process.run('open', [path]);
+      } else if (Platform.isWindows) {
+        Process.run('cmd', ['/c', 'start', '', path]);
+      }
+    } catch (_) {
+      // Не смогли открыть — путь уже показан в диалоге.
+    }
+  }
+
   /// Готовит PDF и отдаёт в системное «Поделиться / Сохранить».
   Future<void> _exportPdf(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -243,10 +269,54 @@ class ResultScreen extends StatelessWidget {
       final safeName = projectName
           .replaceAll(RegExp(r'[^\wА-Яа-я0-9]+'), '-')
           .replaceAll(RegExp(r'^-+|-+$'), '');
-      await Printing.sharePdf(
-        bytes: bytes,
-        filename: 'schet-${safeName.isEmpty ? 'proekt' : safeName}.pdf',
-      );
+      final fileName =
+          'schet-${safeName.isEmpty ? 'proekt' : safeName}-${_stamp()}.pdf';
+
+      // На телефоне уместна система «Поделиться». На десктопе системного
+      // листа нет — раньше кнопка просто ничего не делала, поэтому сохраняем
+      // файл в «Загрузки» и предлагаем открыть.
+      if (Platform.isAndroid || Platform.isIOS) {
+        await Printing.sharePdf(bytes: bytes, filename: fileName);
+      } else {
+        final dir = await getDownloadsDirectory() ??
+            Directory('${Platform.environment['HOME'] ?? '.'}/Downloads');
+        if (!dir.existsSync()) dir.createSync(recursive: true);
+        final file = File('${dir.path}/$fileName');
+        await file.writeAsBytes(bytes, flush: true);
+
+        if (!context.mounted) return;
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('PDF готов'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Файл сохранён:'),
+                const SizedBox(height: 8),
+                SelectableText(
+                  file.path,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Закрыть'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  _openPath(file.path);
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Открыть'),
+              ),
+            ],
+          ),
+        );
+      }
     } catch (e) {
       if (!context.mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
