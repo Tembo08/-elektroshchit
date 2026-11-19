@@ -81,6 +81,17 @@ flutter build appbundle --release              # AAB для RuStore
 Требуется Flutter 3.47+, JDK 17 и Android SDK. Иконки перегенерируются командой
 `python3 tool/generate_icon.py` (нужен Pillow).
 
+### Подпись релиза
+
+`android/key.properties` и `android/upload-keystore.jks` лежат вне git. Без них
+релиз собирается debug-ключом (для магазина не годится). Потеря keystore =
+невозможность обновлять приложение в магазине, поэтому файл нужно сохранить
+в надёжном месте:
+
+```bash
+cp android/upload-keystore.jks ~/backup/elektroshchit-upload.jks
+```
+
 ## Ограничения
 
 - Расчёт черновой: не заменяет проект, подписанный электриком с допуском.
