@@ -69,6 +69,36 @@ class PdfExporter {
         ),
         build: (context) => [
           _title(),
+          if (result.issues.any((i) => i.isError)) ...[
+            pw.SizedBox(height: 8),
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: pw.BoxDecoration(
+                color: const PdfColor.fromInt(0xFFFDECEA),
+                border: pw.Border.all(color: _error, width: 0.8),
+                borderRadius: pw.BorderRadius.circular(4),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'НЕ ДЛЯ МОНТАЖА',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                      color: _error,
+                    ),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    'В расчёте есть ошибки — исправьте их и пересчитайте перед '
+                    'закупкой и монтажом.',
+                    style: const pw.TextStyle(fontSize: 8, color: _ink),
+                  ),
+                ],
+              ),
+            ),
+          ],
           pw.SizedBox(height: 12),
           _summary(),
           pw.SizedBox(height: 14),

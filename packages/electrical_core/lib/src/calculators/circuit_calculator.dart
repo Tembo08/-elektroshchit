@@ -109,11 +109,22 @@ class CircuitCalculator {
     final socketUnits = <_Unit>[];
     final bathSockets = <_Unit>[];
 
+    // Данные могут прийти из сохранённого файла или будущего импорта:
+    // отрицательные количества и мощности ломают расчёт тихо, поэтому
+    // такие потребители отбрасываем и честно сообщаем об этом.
+    final rejected = <String>[];
     for (var roomIndex = 0; roomIndex < project.rooms.length; roomIndex++) {
       final room = project.rooms[roomIndex];
       final isBath = _isBathroom(room.type);
       for (final c in room.consumers) {
         final typeName = c.type.name;
+        final badQuantity = c.quantity <= 0;
+        final badPower = (c.powerKw ?? 0) < 0;
+        final badPhases = c.phases != 1 && c.phases != 3;
+        if (badQuantity || badPower || badPhases) {
+          rejected.add(c.name.isEmpty ? typeName : c.name);
+          continue;
+        }
         if (c.isPowerful || norms.powerfulTypes.contains(typeName)) {
           if (c.quantity < 1) continue;
           powerLines.add(_PowerLine(room, c));
@@ -131,6 +142,15 @@ class CircuitCalculator {
           otherLines.add(_PowerLine(room, c));
         }
       }
+    }
+
+    if (rejected.isNotEmpty) {
+      report(
+        'invalid_consumer_data',
+        severity: IssueSeverity.warning,
+        details: rejected.take(3).join(', ') +
+            (rejected.length > 3 ? ' и ещё ${rejected.length - 3}' : ''),
+      );
     }
 
     // --- 2) Розеточные линии обычных помещений: лимиты и потолок 16 А ---
@@ -172,7 +192,7 @@ class CircuitCalculator {
         id: rcdId,
         name: 'УЗО ${norms.defaultRcdMa} мА (розетки)',
         rcdMa: norms.defaultRcdMa,
-        childAmps: childAmps,
+        childAmps: childAmps.fold<int>(0, (s, a) => s + a),
         childIds: childIds,
         threePhase: project.phaseSystem == PhaseSystem.three,
       ));
@@ -215,7 +235,7 @@ class CircuitCalculator {
         id: rcdId,
         name: 'УЗО ${norms.defaultRcdMa} мА (освещение)',
         rcdMa: norms.defaultRcdMa,
-        childAmps: childAmps,
+        childAmps: childAmps.fold<int>(0, (s, a) => s + a),
         childIds: childIds,
         threePhase: project.phaseSystem == PhaseSystem.three,
       ));
@@ -249,10 +269,30 @@ class CircuitCalculator {
         id: rcdId,
         name: 'УЗО ${norms.bathRcdMa} мА (санузел)',
         rcdMa: norms.bathRcdMa,
-        childAmps: childAmps,
+        childAmps: childAmps.fold<int>(0, (s, a) => s + a),
         childIds: childIds,
         threePhase: project.phaseSystem == PhaseSystem.three,
       ));
+    }
+
+    // --- 5) Мощные приборы и «прочее» — отдельная линия на прибор ---
+    for (final line in [...powerLines, ...otherLines]) {
+      groups.add(_powerfulGroup(
+        index: groups.length + 1,
+        room: line.room,
+        consumer: line.consumer,
+        phaseSystem: project.phaseSystem,
+      ));
+    }
+
+    // Фазы: трёхфазные Линии получают все три, однофазные распределяются
+    // по наименьшей загрузке, фаза УЗО-родителя учитывается по полюсам.
+    if (project.phaseSystem == PhaseSystem.three) {
+      _assignPhases(groups);
+    } else {
+      for (var i = 0; i < groups.length; i++) {
+        groups[i] = groups[i].copyWith(phase: 'L');
+      }
     }
 
     // Не вешаем больше N линий на одно УЗО 30 мА: иначе номинала не хватает,
@@ -284,26 +324,6 @@ class CircuitCalculator {
       maxLines: norms.maxLinesPerRcd,
       threePhase: project.phaseSystem == PhaseSystem.three,
     );
-
-    // --- 5) Мощные приборы и «прочее» — отдельная линия на прибор ---
-    for (final line in [...powerLines, ...otherLines]) {
-      groups.add(_powerfulGroup(
-        index: groups.length + 1,
-        room: line.room,
-        consumer: line.consumer,
-        phaseSystem: project.phaseSystem,
-      ));
-    }
-
-    // Фазы: трёхфазные Линии получают все три, однофазные распределяются
-    // по наименьшей загрузке, фаза УЗО-родителя учитывается по полюсам.
-    if (project.phaseSystem == PhaseSystem.three) {
-      _assignPhases(groups);
-    } else {
-      for (var i = 0; i < groups.length; i++) {
-        groups[i] = groups[i].copyWith(phase: 'L');
-      }
-    }
 
     // --- 6) Ввод ---
     // Замечания ввода собираем отдельно и превращаем в проверки ниже.
@@ -337,6 +357,32 @@ class CircuitCalculator {
         details: 'расчётная ${calculatedPower.toStringAsFixed(1)} кВт, '
             'установленная ${installedPower.toStringAsFixed(1)} кВт, '
             'ТУ ${project.allowedPowerKw.toStringAsFixed(1)} кВт',
+      );
+    }
+
+    // Кабель обязан держать автомат. Подбор сечения почти всегда это
+    // обеспечивает, но если таблица норм кончилась — это уже не совет,
+    // а запрет на монтаж: молча отдавать опасное сочетание нельзя.
+    final undersized = <String>[];
+    for (final g in groups) {
+      CableSectionNorm? norm;
+      for (final candidate in norms.cableSections) {
+        if ((candidate.sectionMm2 - g.cableSectionMm2).abs() < 0.001) {
+          norm = candidate;
+          break;
+        }
+      }
+      if (norm != null && norm.maxCurrentA < g.breakerAmps) {
+        undersized.add('${g.name} (${g.cableSectionMm2} мм² / '
+            '${g.breakerAmps} А)');
+      }
+    }
+    if (undersized.isNotEmpty) {
+      report(
+        'cable_undersized',
+        severity: IssueSeverity.error,
+        details: undersized.take(3).join(', ') +
+            (undersized.length > 3 ? ' и ещё ${undersized.length - 3}' : ''),
       );
     }
 
@@ -960,18 +1006,32 @@ class CircuitCalculator {
       final suffix = c == 0 ? '' : ' ${c + 1}';
       final name = '$baseName$suffix';
       final chunkIds = chunks[c];
-      final amps = <int>[];
+      // Для 4P-УЗО ток через полюс — это ток одной фазы, а не сумма всех
+      // дочерних автоматов. Считаем по фазам, а номинал берём по худшей.
+      final perPhase = <String, int>{'L1': 0, 'L2': 0, 'L3': 0};
+      var singlePhaseSum = 0;
       for (var i = 0; i < groups.length; i++) {
-        if (chunkIds.contains(groups[i].id)) {
-          groups[i] = groups[i].copyWith(parentRcdId: id);
-          amps.add(groups[i].breakerAmps);
+        if (!chunkIds.contains(groups[i].id)) continue;
+        groups[i] = groups[i].copyWith(parentRcdId: id);
+        final amps = groups[i].breakerAmps;
+        singlePhaseSum += amps;
+        final phase = groups[i].phase ?? 'L1';
+        if (phase.contains('-')) {
+          for (final p in perPhase.keys) {
+            perPhase[p] = perPhase[p]! + amps;
+          }
+        } else {
+          perPhase[phase] = (perPhase[phase] ?? 0) + amps;
         }
       }
+      final childAmps = threePhase
+          ? perPhase.values.reduce(math.max)
+          : singlePhaseSum;
       replacements.add(_parentRcd(
         id: id,
         name: name,
         rcdMa: rcdMa,
-        childAmps: amps,
+        childAmps: childAmps,
         childIds: chunkIds,
         threePhase: threePhase,
       ));
@@ -983,18 +1043,17 @@ class CircuitCalculator {
     required String id,
     required String name,
     required int rcdMa,
-    required List<int> childAmps,
+    required int childAmps,
     required List<String> childIds,
     required bool threePhase,
   }) {
-    final sum = childAmps.fold<int>(0, (s, a) => s + a);
-    final amps = norms.rcdRatingAtLeast(sum.toDouble());
+    final ratingAmps = norms.rcdRatingAtLeast(childAmps.toDouble());
     final poles = threePhase ? 4 : 2;
     return ProtectionDevice(
       id: id,
       kind: ProtectionKind.rcd,
       name: name,
-      amps: amps,
+      amps: ratingAmps,
       rcdMa: rcdMa,
       dinModules: poles,
       childBreakerIds: childIds,
@@ -1105,7 +1164,9 @@ class CircuitCalculator {
       final phase = loads.entries
           .reduce((a, b) => a.value <= b.value ? a : b)
           .key;
-      loads[phase] = loads[phase]! + g.totalPowerKw;
+      // Раскидываем по расчётной мощности: именно она определяет перекос,
+      // который увидит пользователь (и именно она идёт в баланс фаз).
+      loads[phase] = loads[phase]! + g.demandPowerKw;
       groups[i] = g.copyWith(phase: phase);
     }
   }

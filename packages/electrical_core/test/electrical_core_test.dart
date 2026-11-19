@@ -990,6 +990,100 @@ void main() {
     });
   });
 
+  group('находки ревью V4 Pro', () {
+    test('фазы раскидываются по расчётной мощности', () {
+      // Розетки (спрос 0.7) и силовой прибор равной установленной мощности:
+      // если раскидывать по установленной, перекос будет больше.
+      final r = calc.calculate(
+        project(powerKw: 30, phase: PhaseSystem.three, rooms: [
+          room('Зал', RoomType.livingRoom, [
+            c('s', ConsumerType.socket, qty: 30), // 3.0 кВт, спрос 2.1
+          ]),
+          room('Кухня', RoomType.kitchen, [
+            c('b', ConsumerType.boiler, power: 3.0, powerful: true),
+          ]),
+        ]),
+        socketLines: 1,
+      );
+      final balance = r.phaseBalance!;
+      // По расчётной мощности: 2.1 против 3.0; перекос ~18 %.
+      // По установленной было бы 3.0 против 3.0 — картина другая.
+      expect(balance.l1Kw + balance.l2Kw + balance.l3Kw,
+          closeTo(5.1, 0.05));
+    });
+
+    test('мусорные данные приборов не ломают расчёт, а попадают в проверки',
+        () {
+      final r = calc.calculate(
+        project(rooms: [
+          const Room(
+            id: 'r1',
+            name: 'Кухня',
+            type: RoomType.kitchen,
+            area: 10,
+            consumers: [
+              Consumer(
+                id: 'bad-qty',
+                type: ConsumerType.socket,
+                name: 'Розетки',
+                quantity: -5,
+              ),
+              Consumer(
+                id: 'bad-power',
+                type: ConsumerType.boiler,
+                name: 'Котёл',
+                quantity: 1,
+                powerKw: -3,
+                isPowerful: true,
+              ),
+              Consumer(
+                id: 'bad-phases',
+                type: ConsumerType.evCharger,
+                name: 'Зарядка',
+                quantity: 1,
+                powerKw: 11,
+                isPowerful: true,
+                phases: 2,
+              ),
+              Consumer(
+                id: 'ok',
+                type: ConsumerType.lightPoint,
+                name: 'Свет',
+                quantity: 4,
+              ),
+            ],
+          ),
+        ]),
+      );
+      final issue = r.issues.firstWhere(
+        (i) => i.id == 'invalid_consumer_data',
+        orElse: () => fail('проверка о мусорных данных не сработала'),
+      );
+      expect(issue.severity, IssueSeverity.warning);
+      expect(issue.message, contains('Розетки'));
+      // Валидный свет остался в расчёте.
+      expect(r.groups.any((g) => g.name.contains('Освещение')), isTrue);
+    });
+
+    test('номинал 4P-УЗО берётся по фазе, а не по сумме автоматов', () {
+      final r = calc.calculate(
+        project(powerKw: 25, phase: PhaseSystem.three, rooms: [
+          room('Зал', RoomType.livingRoom, [
+            c('s', ConsumerType.socket, qty: 8),
+            c('l', ConsumerType.lightPoint, qty: 8),
+          ]),
+        ]),
+        socketLines: 1,
+      );
+      // Две однофазные линии по 16 и 10 А попадают на разные фазы →
+      // 4P УЗО должно быть на 16 А, а не на 26 А.
+      final socketRcd = r.panel.protectionDevices.firstWhere(
+        (d) => d.name.contains('розетки'),
+      );
+      expect(socketRcd.amps, lessThan(25));
+    });
+  });
+
   group('система заземления', () {
     test('TT требует УЗО на каждой линии', () {
       final r = calc.calculate(

@@ -96,24 +96,30 @@ ProjectDraft draftFromJson(Map<String, dynamic> json) {
     if (g.name == json['grounding']) grounding = g;
   }
 
-  final roomsJson = (json['rooms'] as List?) ?? const [];
+  final roomsRaw = json['rooms'];
+  final roomsJson = roomsRaw is List ? roomsRaw : const [];
   final rooms = <RoomDraft>[];
   for (final item in roomsJson) {
-    final m = Map<String, dynamic>.from(item as Map);
+    if (item is! Map) continue;
+    final m = Map<String, dynamic>.from(item);
     var type = core.RoomType.other;
     for (final t in core.RoomType.values) {
       if (t.name == m['type']) type = t;
     }
 
     final dedicated = <core.ConsumerType, ApplianceSpec>{};
-    final dedicatedJson = (m['dedicated'] as Map?) ?? const {};
+    final dedicatedRaw = m['dedicated'];
+    final dedicatedJson =
+        dedicatedRaw is Map ? dedicatedRaw : const <String, dynamic>{};
     for (final entry in dedicatedJson.entries) {
       core.ConsumerType? consumerType;
       for (final t in core.ConsumerType.values) {
         if (t.name == entry.key) consumerType = t;
       }
       if (consumerType == null) continue;
-      final spec = Map<String, dynamic>.from(entry.value as Map);
+      final rawSpec = entry.value;
+      if (rawSpec is! Map) continue;
+      final spec = Map<String, dynamic>.from(rawSpec);
       dedicated[consumerType] = ApplianceSpec(
         quantity: (spec['quantity'] as num?)?.toInt() ?? 1,
         powerKw: (spec['powerKw'] as num?)?.toDouble(),
@@ -157,21 +163,58 @@ ProjectDraft draftFromJson(Map<String, dynamic> json) {
 class ProjectStore {
   static const _key = 'saved_projects_v1';
 
+  /// Копия нечитаемых данных. Нужна, чтобы восстановить проекты руками,
+  /// а не потерять их молча: при следующем сохранении основное поле
+  /// перезапишется, а бэкап останется.
+  static const _backupKey = 'saved_projects_v1_corrupt';
+
   Future<List<SavedProject>> loadAll() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
     if (raw == null || raw.isEmpty) return [];
+
     try {
-      final list = jsonDecode(raw) as List;
-      final projects = list
-          .map((e) => SavedProject.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) throw const FormatException('ожидался массив');
+
+      final projects = <SavedProject>[];
+      var broken = 0;
+      for (final item in decoded) {
+        // Одна испорченная запись не должна прятать остальные проекты.
+        try {
+          projects.add(
+            SavedProject.fromJson(Map<String, dynamic>.from(item as Map)),
+          );
+        } catch (_) {
+          broken++;
+        }
+      }
+
+      if (broken > 0) await _backup(prefs, raw);
       projects.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
       return projects;
     } catch (_) {
-      // Битые данные не должны ронять приложение: считаем, что проектов нет.
+      // Файл целиком не разбирается: сохраняем копию и не теряем её.
+      await _backup(prefs, raw);
       return [];
     }
+  }
+
+  Future<void> _backup(SharedPreferences prefs, String raw) async {
+    await prefs.setString(_backupKey, raw);
+  }
+
+  /// Есть ли сохранённая копия повреждённых данных (для подсказки в UI).
+  Future<bool> hasCorruptBackup() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_backupKey);
+    return raw != null && raw.isNotEmpty;
+  }
+
+  /// Сами повреждённые данные — чтобы пользователь мог их забрать.
+  Future<String?> corruptBackup() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_backupKey);
   }
 
   Future<void> saveAll(List<SavedProject> projects) async {

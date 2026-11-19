@@ -1,51 +1,51 @@
 # Стоп-сценарии и предупреждения
 # version: ru_2026
+#
+# Здесь только ТЕКСТЫ и УРОВНИ проверок: логика каждой проверки живёт
+# в circuit_calculator.dart (id совпадает с ключом в коде). Поля вида
+# check: "..." раньше лежали тут, но никто их не исполнял — убраны, чтобы
+# конфиг не обещал того, чего не делает.
 
 # Критические ошибки (блокируют / показывают красным)
 stop_scenarios:
   - id: input_power_exceeded
     severity: error
     message: "Суммарная расчётная нагрузка превышает разрешённую мощность по ТУ"
-    check: "total_calculated_power_kw > allowed_power_kw"
 
   - id: cable_undersized
     severity: error
     message: "Сечение кабеля меньше, чем требует номинал автомата"
-    check: "cable_max_current < breaker_amps"
 
   - id: no_rcd_on_sockets
     severity: error
     message: "На розеточной группе отсутствует УЗО 30 мА"
-    check: "socket_group && !has_rcd"
 
   - id: no_rcd_wet_room
     severity: error
     message: "Во влажном помещении отсутствует УЗО 30 мА"
-    check: "wet_room && !has_rcd"
 
 # Предупреждения (не блокируют, но показывают)
 warnings:
   - id: high_load_factor
     severity: warning
     message: "Высокий коэффициент загрузки ввода (> 0.9)"
-    check: "load_factor > 0.9"
 
   - id: many_sockets_one_group
     severity: warning
     message: "В одной розеточной группе много точек (> 8)"
-    check: "socket_count > 8"
 
   - id: no_fire_rcd
     severity: info
     message: "Рекомендуется противопожарное УЗО 100 мА на вводе"
-    check: "optional"
+
+  - id: invalid_consumer_data
+    severity: warning
+    message: "Часть приборов пропущена: количество, мощность или число фаз некорректны"
 
   - id: tt_requires_rcd
     severity: warning
     message: "Система заземления TT: УЗО обязательно на каждой линии"
-    check: "grounding == TT && !has_rcd"
 
   - id: draft_notice
     severity: info
     message: "Результат является черновиком и требует проверки квалифицированным электриком"
-    always: true

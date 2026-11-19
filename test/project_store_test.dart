@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:electrical_core/electrical_core.dart' as core;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -158,11 +160,41 @@ void main() {
     expect(all.last.name, 'Старый');
   });
 
-  test('битые данные не роняют список', () async {
+  test('одна битая запись не прячет остальные проекты', () async {
+    final store = ProjectStore();
+    await store.upsert(
+      draft: sampleDraft(name: 'Первый'),
+      now: DateTime(2026, 11, 19, 9),
+    );
+    await store.upsert(
+      draft: sampleDraft(name: 'Второй'),
+      now: DateTime(2026, 11, 19, 10),
+    );
+
+    // Портим середину списка руками: у записи нет обязательного id.
+    final prefs = await SharedPreferences.getInstance();
+    final raw = jsonDecode(prefs.getString('saved_projects_v1')!) as List;
+    raw.insert(1, {'name': 'мусор', 'draft': 42});
+    await prefs.setString('saved_projects_v1', jsonEncode(raw));
+
+    final projects = await store.loadAll();
+    expect(projects.length, 2, reason: 'две валидные записи должны выжить');
+    expect(projects.map((p) => p.name), contains('Первый'));
+    expect(projects.map((p) => p.name), contains('Второй'));
+    expect(await store.hasCorruptBackup(), isTrue);
+  });
+
+  test('полностью битый файл сохраняется в бэкап, а не теряется', () async {
     SharedPreferences.setMockInitialValues({
-      'saved_projects_v1': 'не json',
+      'saved_projects_v1': 'это не json',
     });
     final store = ProjectStore();
     expect(await store.loadAll(), isEmpty);
+    expect(await store.hasCorruptBackup(), isTrue);
+    expect(await store.corruptBackup(), 'это не json');
+
+    // Новое сохранение не должно стирать бэкап.
+    await store.upsert(draft: sampleDraft(name: 'Новый'));
+    expect(await store.corruptBackup(), 'это не json');
   });
 }
