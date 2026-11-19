@@ -1,5 +1,9 @@
 import 'package:electrical_core/electrical_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:printing/printing.dart';
+
+import '../../export/pdf_exporter.dart';
 
 import '../../core/theme.dart';
 import '../../core/tips.dart';
@@ -33,6 +37,11 @@ class ResultScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(projectName),
         actions: [
+          IconButton(
+            tooltip: 'Экспорт PDF',
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            onPressed: () => _exportPdf(context),
+          ),
           IconButton(
             tooltip: 'На главную',
             icon: const Icon(Icons.home_outlined),
@@ -148,6 +157,63 @@ class ResultScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Готовит PDF и отдаёт в системное «Поделиться / Сохранить».
+  Future<void> _exportPdf(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+                SizedBox(width: 14),
+                Text('Собираем PDF…'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final regular = await rootBundle.load('assets/fonts/DejaVuSans.ttf');
+      final bold = await rootBundle.load('assets/fonts/DejaVuSans-Bold.ttf');
+      final bytes = await PdfExporter(
+        result: result,
+        projectName: projectName,
+        details: projectDetails,
+        regularFont: regular.buffer.asUint8List(),
+        boldFont: bold.buffer.asUint8List(),
+      ).build();
+
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+
+      final safeName = projectName
+          .replaceAll(RegExp(r'[^\wА-Яа-я0-9]+'), '-')
+          .replaceAll(RegExp(r'^-+|-+$'), '');
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'schet-${safeName.isEmpty ? 'proekt' : safeName}.pdf',
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      messenger.showSnackBar(
+        SnackBar(content: Text('Не удалось собрать PDF: $e')),
+      );
+    }
   }
 
   Widget _summaryCard(

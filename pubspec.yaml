@@ -38,6 +38,8 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  pdf: ^3.13.1
+  printing: ^5.15.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -57,6 +59,8 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/fonts/DejaVuSans.ttf
+    - assets/fonts/DejaVuSans-Bold.ttf
     - assets/norms/ru_2026/cable_sections.yaml
     - assets/norms/ru_2026/breakers.yaml
     - assets/norms/ru_2026/rcd.yaml
