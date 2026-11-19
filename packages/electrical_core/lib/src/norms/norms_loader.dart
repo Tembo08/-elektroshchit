@@ -1,5 +1,6 @@
 import 'package:yaml/yaml.dart';
 
+import '../models/calc_issue.dart';
 import '../models/template.dart';
 import 'norms_models.dart';
 
@@ -18,6 +19,7 @@ class NormsLoader {
     required String rcdYaml,
     required String groupingRulesYaml,
     String? roomDefaultsYaml,
+    String? stopScenariosYaml,
   }) {
     final cables = _map(loadYaml(cableSectionsYaml), 'cable_sections');
     final breakersMap = _map(loadYaml(breakersYaml), 'breakers');
@@ -129,6 +131,28 @@ class NormsLoader {
       }
     }
 
+    final scenarioRules = <String, ScenarioRule>{};
+    if (stopScenariosYaml != null && stopScenariosYaml.trim().isNotEmpty) {
+      final scenariosDoc = _map(loadYaml(stopScenariosYaml), 'stop_scenarios');
+      for (final section in ['stop_scenarios', 'warnings']) {
+        final list = scenariosDoc[section];
+        if (list is! YamlList) continue;
+        for (final item in list) {
+          if (item is! YamlMap) continue;
+          final id = item['id']?.toString();
+          final message = item['message']?.toString();
+          if (id == null || message == null) continue;
+          scenarioRules[id] = ScenarioRule(
+            id: id,
+            severity: ScenarioRule.parseSeverity(
+              item['severity']?.toString() ?? 'warning',
+            ),
+            message: message,
+          );
+        }
+      }
+    }
+
     final ratings = <int>[];
     if (rcdMap['ratings_a'] is YamlList) {
       for (final a in _list(rcdMap['ratings_a'], 'ratings_a')) {
@@ -168,6 +192,7 @@ class NormsLoader {
             ],
       defaultPowerKw: defaultPower,
       templates: templates,
+      scenarioRules: scenarioRules,
       rcdType: rcdRules['rcd_type']?.toString().toUpperCase() ?? 'AC',
       rcdRatings: ratings.isEmpty
           ? const [16, 25, 32, 40, 50, 63, 80, 100]

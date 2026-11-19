@@ -13,6 +13,8 @@ final normsProvider = FutureProvider<core.NormsCatalog>((ref) async {
       await rootBundle.loadString('assets/norms/ru_2026/grouping_rules.yaml');
   final roomDefaults =
       await rootBundle.loadString('assets/norms/ru_2026/room_defaults.yaml');
+  final stopScenarios =
+      await rootBundle.loadString('assets/norms/ru_2026/stop_scenarios.yaml');
 
   return core.NormsLoader.fromYamlTexts(
     version: 'ru_2026',
@@ -21,6 +23,7 @@ final normsProvider = FutureProvider<core.NormsCatalog>((ref) async {
     rcdYaml: rcd,
     groupingRulesYaml: grouping,
     roomDefaultsYaml: roomDefaults,
+    stopScenariosYaml: stopScenarios,
   );
 });
 

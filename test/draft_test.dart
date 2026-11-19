@@ -27,6 +27,8 @@ NormsCatalog loadNorms() {
     rcdYaml: File('$_normsDir/rcd.yaml').readAsStringSync(),
     groupingRulesYaml: File('$_normsDir/grouping_rules.yaml').readAsStringSync(),
     roomDefaultsYaml: File('$_normsDir/room_defaults.yaml').readAsStringSync(),
+    stopScenariosYaml:
+        File('$_normsDir/stop_scenarios.yaml').readAsStringSync(),
   );
 }
 

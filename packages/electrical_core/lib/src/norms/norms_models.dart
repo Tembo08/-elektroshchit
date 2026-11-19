@@ -1,6 +1,7 @@
 /// Модели нормативных данных (загружаются из YAML).
 library;
 
+import '../models/calc_issue.dart';
 import '../models/template.dart';
 
 class CableSectionNorm {
@@ -92,6 +93,10 @@ class NormsCatalog {
 
   /// Готовые шаблоны объектов из room_defaults.yaml.
   final List<ProjectTemplate> templates;
+
+  /// Проверки из stop_scenarios.yaml: id → текст и уровень.
+  /// Логика проверок живёт в калькуляторе, здесь — только формулировки.
+  final Map<String, ScenarioRule> scenarioRules;
   final String fireRcdType;
   final String rcdType;
 
@@ -137,6 +142,7 @@ class NormsCatalog {
     ],
     this.defaultPowerKw = const {},
     this.templates = const [],
+    this.scenarioRules = const {},
     this.fireRcdType = 'S',
     this.rcdType = 'AC',
   });

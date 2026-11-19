@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../models/calc_issue.dart';
 import '../models/circuit_group.dart';
 import '../models/consumer.dart';
 import '../models/enums.dart';
@@ -19,12 +20,16 @@ class CalculationResult {
   /// Баланс фаз по расчётным мощностям; null для однофазного проекта.
   final PhaseBalance? phaseBalance;
 
+  /// Проверки щита с уровнями (сообщения — из stop_scenarios.yaml).
+  final List<CalcIssue> issues;
+
   const CalculationResult({
     required this.groups,
     required this.panel,
     required this.warnings,
     this.inputGroup,
     this.phaseBalance,
+    this.issues = const [],
   });
 }
 
@@ -69,9 +74,29 @@ class CircuitCalculator {
     int lightingLines = 2,
     int socketLines = 2,
   }) {
-    final warnings = <String>[
-      'Результат является черновиком и требует проверки квалифицированным электриком',
-    ];
+    final issues = <CalcIssue>[];
+
+    /// Регистрирует проверку: текст и уровень берём из stop_scenarios.yaml,
+    /// если правило там есть; иначе — запасной текст из кода.
+    void report(
+      String id, {
+      String? fallback,
+      IssueSeverity severity = IssueSeverity.warning,
+      String? details,
+    }) {
+      final rule = norms.scenarioRules[id];
+      final base = rule?.message ?? fallback ?? id;
+      issues.add(CalcIssue(
+        id: id,
+        severity: rule?.severity ?? severity,
+        message: details == null ? base : '$base ($details)',
+      ));
+    }
+
+    report('draft_notice',
+        severity: IssueSeverity.info,
+        fallback: 'Результат является черновиком и требует проверки '
+            'квалифицированным электриком');
 
     final groups = <CircuitGroup>[];
     final devices = <ProtectionDevice>[];
@@ -116,11 +141,14 @@ class CircuitCalculator {
       minLines: socketLines,
     );
     if (socketBuckets.length > math.max(1, socketLines)) {
-      warnings.add(
-        'Розетки разбиты на ${socketBuckets.length} '
-        '${_linesWord(socketBuckets.length)}: больше '
-        '${norms.maxSocketsPerGroup} точек или '
-        '${norms.maxPowerKwPerSocketGroup.toStringAsFixed(1)} кВт на линию нельзя',
+      report(
+        'many_sockets_one_group',
+        fallback: 'Розетки разбиты на линии по лимиту группировки',
+        details: '${socketBuckets.length} '
+            '${_linesWord(socketBuckets.length)}: больше '
+            '${norms.maxSocketsPerGroup} точек или '
+            '${norms.maxPowerKwPerSocketGroup.toStringAsFixed(1)} кВт '
+            'на линию нельзя',
       );
     }
     if (socketBuckets.isNotEmpty) {
@@ -158,10 +186,12 @@ class CircuitCalculator {
       minLines: lightingLines,
     );
     if (lightingBuckets.length > math.max(1, lightingLines)) {
-      warnings.add(
-        'Освещение разбито на ${lightingBuckets.length} '
-        '${_linesWord(lightingBuckets.length)}: больше '
-        '${norms.maxLightingPointsPerGroup} точек или перегруз на линию',
+      report(
+        'many_lighting_points_one_group',
+        fallback: 'Освещение разбито на линии по лимиту группировки',
+        details: '${lightingBuckets.length} '
+            '${_linesWord(lightingBuckets.length)}: больше '
+            '${norms.maxLightingPointsPerGroup} точек или перегруз на линию',
       );
     }
     if (lightingBuckets.isNotEmpty) {
@@ -276,10 +306,12 @@ class CircuitCalculator {
     }
 
     // --- 6) Ввод ---
+    // Замечания ввода собираем отдельно и превращаем в проверки ниже.
+    final inputWarnings = <String>[];
     final inputGroup = _buildInputGroup(
       project,
       fixedBreakerAmps: inputBreakerAmps,
-      warnings: warnings,
+      warnings: inputWarnings,
     );
 
     // --- 7) Итоги ---
@@ -299,19 +331,33 @@ class CircuitCalculator {
     final isInputSufficient = calculatedPower <= project.allowedPowerKw;
 
     if (!isInputSufficient) {
-      warnings.add(
-        'Расчётная нагрузка (${calculatedPower.toStringAsFixed(1)} кВт, '
-        'установленная ${installedPower.toStringAsFixed(1)} кВт) '
-        'превышает разрешённую мощность по ТУ ('
-        '${project.allowedPowerKw.toStringAsFixed(1)} кВт)',
+      report(
+        'input_power_exceeded',
+        severity: IssueSeverity.error,
+        details: 'расчётная ${calculatedPower.toStringAsFixed(1)} кВт, '
+            'установленная ${installedPower.toStringAsFixed(1)} кВт, '
+            'ТУ ${project.allowedPowerKw.toStringAsFixed(1)} кВт',
       );
+    }
+
+    if (project.allowedPowerKw > 0 &&
+        loadFactor > 0.9 &&
+        isInputSufficient) {
+      report(
+        'high_load_factor',
+        details: '${(loadFactor * 100).round()} %',
+      );
+    }
+
+    for (final w in inputWarnings) {
+      report('input_warning', fallback: w);
     }
 
     // Предупреждения уровня линии поднимаем в общий список, чтобы их
     // нельзя было не показать в интерфейсе.
     for (final g in groups) {
       for (final w in g.warnings) {
-        warnings.add('${g.name}: $w');
+        report('line_warning', fallback: w, details: g.name);
       }
     }
     final recommendedDin = (totalDin * 1.25).ceil();
@@ -331,21 +377,23 @@ class CircuitCalculator {
 
     final balance = _phaseBalance(groups, project.phaseSystem);
     if (balance != null && !balance.isBalanced) {
-      warnings.add(
-        'Перекос фаз ${balance.imbalancePercent.toStringAsFixed(0)}% '
-        '(L1 ${balance.l1Kw.toStringAsFixed(1)} / '
-        'L2 ${balance.l2Kw.toStringAsFixed(1)} / '
-        'L3 ${balance.l3Kw.toStringAsFixed(1)} кВт) — перекиньте часть '
-        'линий на свободную фазу',
+      report(
+        'phase_imbalance',
+        fallback: 'Перекос фаз — перекиньте часть линий на свободную фазу',
+        details: '${balance.imbalancePercent.toStringAsFixed(0)}% '
+            '(L1 ${balance.l1Kw.toStringAsFixed(1)} / '
+            'L2 ${balance.l2Kw.toStringAsFixed(1)} / '
+            'L3 ${balance.l3Kw.toStringAsFixed(1)} кВт)',
       );
     }
 
     return CalculationResult(
       groups: groups,
       panel: panel,
-      warnings: warnings,
+      warnings: issues.map((i) => i.message).toList(),
       inputGroup: inputGroup,
       phaseBalance: balance,
+      issues: issues,
     );
   }
 

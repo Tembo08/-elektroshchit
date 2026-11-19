@@ -14,6 +14,8 @@ NormsCatalog loadNorms() {
     rcdYaml: File('$_normsDir/rcd.yaml').readAsStringSync(),
     groupingRulesYaml: File('$_normsDir/grouping_rules.yaml').readAsStringSync(),
     roomDefaultsYaml: File('$_normsDir/room_defaults.yaml').readAsStringSync(),
+    stopScenariosYaml:
+        File('$_normsDir/stop_scenarios.yaml').readAsStringSync(),
   );
 }
 
@@ -194,7 +196,11 @@ void main() {
         expect(g.consumerIds.length, lessThanOrEqualTo(10));
         expect(g.cableSectionMm2, greaterThanOrEqualTo(2.5));
       }
-      expect(r.warnings.any((w) => w.contains('Розетки разбиты')), isTrue);
+      expect(
+        r.issues.any((i) => i.id == 'many_sockets_one_group'),
+        isTrue,
+        reason: 'разбиение розеток должно быть проверкой в отчёте',
+      );
     });
 
     test('60 розеток на 1 линию — режется на 6 линий, а не даёт 32 А', () {
@@ -314,7 +320,10 @@ void main() {
         expect(g.calculatedCurrentA, lessThanOrEqualTo(g.breakerAmps));
         expect(g.breakerAmps, lessThanOrEqualTo(norms.lightingMaxAmps));
       }
-      expect(r.warnings.any((w) => w.contains('Освещение разбито')), isTrue);
+      expect(
+        r.issues.any((i) => i.id == 'many_lighting_points_one_group'),
+        isTrue,
+      );
     });
   });
 
@@ -809,11 +818,11 @@ void main() {
         ]),
       );
       expect(r.panel.isInputSufficient, isFalse);
-      final w = r.warnings.firstWhere(
-        (w) => w.contains('превышает разрешённую мощность'),
-      );
-      expect(w, contains('Расчётная нагрузка'));
-      expect(w, contains('установленная'));
+      final issue = r.issues
+          .firstWhere((i) => i.id == 'input_power_exceeded');
+      expect(issue.isError, isTrue);
+      expect(issue.message.toLowerCase(), contains('расчётная нагрузка'));
+      expect(issue.message, contains('установленная'));
     });
   });
 
@@ -908,6 +917,76 @@ void main() {
               '${g.consumerIds.join(",")}')
           .join(';');
       expect(signature(calc.calculate(make())), signature(calc.calculate(make())));
+    });
+  });
+
+  group('проверки из stop_scenarios.yaml', () {
+    test('правила загружаются и содержат уровни', () {
+      expect(norms.scenarioRules, isNotEmpty);
+      expect(norms.scenarioRules['input_power_exceeded']?.severity,
+          IssueSeverity.error);
+      expect(norms.scenarioRules['high_load_factor']?.severity,
+          IssueSeverity.warning);
+      expect(norms.scenarioRules['draft_notice']?.severity, IssueSeverity.info);
+      expect(
+        norms.scenarioRules['input_power_exceeded']!.message,
+        contains('превышает разрешённую мощность'),
+      );
+    });
+
+    test('текст проверки берётся из YAML, а не из кода', () {
+      final r = calc.calculate(
+        project(powerKw: 4, rooms: [
+          room('Кухня', RoomType.kitchen, [
+            c('p', ConsumerType.electricStove, power: 7.0, powerful: true),
+          ]),
+        ]),
+      );
+      final issue =
+          r.issues.firstWhere((i) => i.id == 'input_power_exceeded');
+      final yaml = norms.scenarioRules['input_power_exceeded']!.message;
+      expect(issue.message, startsWith(yaml));
+      expect(issue.isError, isTrue);
+    });
+
+    test('черновик есть всегда и помечен как info', () {
+      final r = calc.calculate(project(rooms: const []));
+      expect(r.issues.first.id, 'draft_notice');
+      expect(r.issues.first.severity, IssueSeverity.info);
+    });
+
+    test('высокая загрузка ввода даёт предупреждение', () {
+      final r = calc.calculate(
+        project(powerKw: 8, rooms: [
+          room('Зал', RoomType.livingRoom, [
+            c('l', ConsumerType.lightPoint, qty: 10), // 0.5 кВт
+            c('s', ConsumerType.socket, qty: 30), // 3 кВт × 0.7 = 2.1
+            c('b', ConsumerType.boiler, power: 5.0, powerful: true),
+          ]),
+        ]),
+        socketLines: 1,
+      );
+      // 0.5 + 2.1 + 5.0 = 7.6 кВт при ТУ 8 кВт → 95 % загрузки.
+      expect(r.panel.loadFactor, greaterThan(0.9));
+      expect(r.panel.isInputSufficient, isTrue);
+      expect(
+        r.issues.any((i) => i.id == 'high_load_factor'),
+        isTrue,
+      );
+    });
+
+    test('warnings остаются совместимыми (текст = сообщение проверки)', () {
+      final r = calc.calculate(
+        project(powerKw: 4, rooms: [
+          room('Кухня', RoomType.kitchen, [
+            c('p', ConsumerType.electricStove, power: 7.0, powerful: true),
+          ]),
+        ]),
+      );
+      expect(r.warnings.length, r.issues.length);
+      for (var i = 0; i < r.issues.length; i++) {
+        expect(r.warnings[i], r.issues[i].message);
+      }
     });
   });
 

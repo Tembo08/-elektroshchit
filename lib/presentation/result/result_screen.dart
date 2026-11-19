@@ -69,15 +69,15 @@ class ResultScreen extends StatelessWidget {
           const SizedBox(height: 8),
           ..._linesSection(context),
           const SizedBox(height: 20),
-          Text('Предупреждения', style: titleStyle),
+          Text('Проверки', style: titleStyle),
           const SizedBox(height: 8),
-          if (result.warnings.isEmpty)
+          if (result.issues.isEmpty)
             Text(
-              'Предупреждений нет',
+              'Замечаний нет',
               style: TextStyle(fontSize: 15, color: scheme.onSurfaceVariant),
             )
           else
-            ...result.warnings.map((w) => _warningTile(context, w)),
+            ...result.issues.map((issue) => _issueTile(context, issue)),
           const SizedBox(height: 20),
           Text('Спецификация (черновик)', style: titleStyle),
           const SizedBox(height: 8),
@@ -541,27 +541,49 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _warningTile(BuildContext context, String text) {
+  Widget _issueTile(BuildContext context, CalcIssue issue) {
     final scheme = Theme.of(context).colorScheme;
-    final isError = text.contains('Перегруз') ||
-        text.contains('кончилась') ||
-        text.contains('превышает') ||
-        text.contains('нельзя');
+    final (icon, color, label) = switch (issue.severity) {
+      IssueSeverity.error => (
+          Icons.error_outline,
+          AppColors.error,
+          'Ошибка',
+        ),
+      IssueSeverity.warning => (
+          Icons.warning_amber_outlined,
+          AppColors.warn,
+          'Предупреждение',
+        ),
+      IssueSeverity.info => (
+          Icons.info_outline,
+          scheme.primary,
+          'Справка',
+        ),
+    };
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            isError ? Icons.error_outline : Icons.info_outline,
-            size: 20,
-            color: isError ? AppColors.error : scheme.primary,
-          ),
+          Icon(icon, size: 20, color: color),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 14, height: 1.35),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  issue.message,
+                  style: const TextStyle(fontSize: 14, height: 1.35),
+                ),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
