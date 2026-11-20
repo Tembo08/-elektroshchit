@@ -14,9 +14,6 @@ import '../projects/projects_screen.dart'
     show projectStoreProvider, savedProjectsProvider;
 import '../../export/pdf_exporter.dart';
 import '../../core/theme.dart';
-import '../../plan/plan_models.dart';
-import '../../plan/plan_seed.dart';
-import '../plan/plan_sheet_screen.dart';
 import '../../core/tips.dart';
 import '../widgets/tip_card.dart';
 
@@ -148,12 +145,6 @@ class ResultScreen extends StatelessWidget {
                 ],
               ],
             ),
-          ),
-          const SizedBox(height: 20),
-          Text('План помещения', style: titleStyle),
-          const SizedBox(height: 8),
-          Consumer(
-            builder: (context, ref, _) => _planCard(context, ref),
           ),
           const SizedBox(height: 16),
           Card(
@@ -340,77 +331,7 @@ class ResultScreen extends StatelessWidget {
     }
   }
 
-  /// План помещения: сюда переехал вход из главной.
-  ///
-  /// Черновик берём из провайдера: в нём уже есть комнаты, точки и щит.
-  Widget _planCard(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
-    final draft = ref.watch(projectDraftProvider);
-    final plan = draft.plan ?? PlanSeed.fromDraft(draft);
-    final sockets = plan.devices
-        .where((d) => d.type == PlanPointType.socket)
-        .length;
-    final lights =
-        plan.devices.where((d) => d.type == PlanPointType.light).length;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.architecture, size: 20, color: scheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Как это выглядит в квартире',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.onSurface,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Комнат: ${plan.rooms.length} · точек: ${plan.devices.length} '
-              '(розеток $sockets, свет $lights). '
-              'Разложите комнаты, поставьте точки и щит — длины трасс '
-              'посчитаются сами.',
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.35,
-                color: scheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.tonalIcon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PlanSheetScreen(
-                        result: result,
-                        projectName: projectName,
-                      ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                label: const Text('Открыть план'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _summaryCard(
     BuildContext context,
