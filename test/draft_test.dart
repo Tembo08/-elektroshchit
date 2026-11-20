@@ -141,7 +141,35 @@ void main() {
     expect(find.text('Дом в Сосновке'), findsOneWidget);
     expect(find.text('150'), findsOneWidget);
     expect(find.text('2.8'), findsOneWidget);
-    expect(find.text('TT'), findsOneWidget);
+    // «TT» теперь в двух местах: сегмент переключателя и карточка-пояснение.
+    expect(find.text('TT'), findsWidgets);
+    expect(find.textContaining('УЗО нужно на каждой линии'), findsOneWidget);
+  });
+
+  testWidgets('кнопка «Готово» закреплена снизу и не тонет под панелью',
+      (tester) async {
+    tester.view.physicalSize = const Size(900, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: RoomWizardScreen(norms: norms),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Кнопка вне прокручиваемого списка: она в нижней панели Scaffold.
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+    expect(scaffold.bottomNavigationBar, isNotNull);
+    final done = find.text('Готово');
+    expect(done, findsOneWidget);
+    // Верх кнопки ниже середины экрана — то есть она у нижнего края.
+    final top = tester.getTopLeft(done).dy;
+    expect(top, greaterThan(600));
   });
 
   testWidgets('экран «О приложении» показывает политику и версию',

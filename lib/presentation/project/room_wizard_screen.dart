@@ -401,12 +401,25 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
                 _switches = v;
               }),
             ),
-            const SizedBox(height: 28),
-            FilledButton(
-              onPressed: _done,
-              child: const Text('Готово', style: TextStyle(fontSize: 17)),
-            ),
+            // место под закреплённую кнопку, чтобы последнее поле
+            // не пряталось за ней при прокрутке
+            const SizedBox(height: 96),
           ],
+        ),
+        // Кнопка живёт в bottomNavigationBar: она всегда под рукой и не
+        // уезжает под системную панель навигации (SafeArea).
+        bottomNavigationBar: SafeArea(
+          minimum: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: SizedBox(
+              height: 52,
+              child: FilledButton(
+                onPressed: _done,
+                child: const Text('Готово', style: TextStyle(fontSize: 17)),
+              ),
+            ),
+          ),
         ),
       ),
     );

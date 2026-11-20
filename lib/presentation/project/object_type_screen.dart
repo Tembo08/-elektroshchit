@@ -196,26 +196,38 @@ class _ObjectTypeScreenState extends ConsumerState<ObjectTypeScreen> {
                 _saveMeta();
               },
             ),
-            const SizedBox(height: 28),
-            FilledButton(
-              onPressed: canNext
-                  ? () {
-                      _saveMeta();
-                      ref.read(projectDraftProvider.notifier).startProject(
-                            _objectType!,
-                            _phase,
-                          );
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => RoomsFlowScreen(norms: widget.norms),
-                        ),
-                      );
-                    }
-                  : null,
-              child: const Text('Далее', style: TextStyle(fontSize: 17)),
+            const SizedBox(height: 24),
+            _GroundingNotes(selected: _grounding),
+            const SizedBox(height: 96),
+          ],
+        ),
+        bottomNavigationBar: SafeArea(
+          minimum: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: SizedBox(
+              height: 52,
+              child: FilledButton(
+                onPressed: canNext
+                    ? () {
+                        _saveMeta();
+                        ref.read(projectDraftProvider.notifier).startProject(
+                              _objectType!,
+                              _phase,
+                            );
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                RoomsFlowScreen(norms: widget.norms),
+                          ),
+                        );
+                      }
+                    : null,
+                child: const Text('Далее', style: TextStyle(fontSize: 17)),
+              ),
             ),
-        ],
-      ),
+          ),
+        ),
     );
   }
 
@@ -250,6 +262,120 @@ class _ObjectTypeScreenState extends ConsumerState<ObjectTypeScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+
+/// Подсказки по системам заземления: без них аббревиатуры ничего не говорят.
+class _GroundingNotes extends StatelessWidget {
+  final core.GroundingSystem selected;
+
+  const _GroundingNotes({required this.selected});
+
+  static const _items = {
+    core.GroundingSystem.tnCs: (
+      'TN-C-S',
+      'Самый частый вариант в домах: щит питается четырьмя проводами (PEN), '
+          'на вводе PEN делится на N и PE. Дальше по квартире — отдельные '
+          'нулевой и защитный проводники.',
+      'УЗО обязательно: разрыв PEN опасен, защищает именно УЗО.',
+    ),
+    core.GroundingSystem.tnS: (
+      'TN-S',
+      'Пять проводов от подстанции: нулевой и защитный идут раздельно по '
+          'всей линии. Так делают в новых домах и по проекту.',
+      'Самый предсказуемый вариант, но требует пятижильного ввода.',
+    ),
+    core.GroundingSystem.tt: (
+      'TT',
+      'Защитный проводник идёт от собственного заземлителя (штыри, полоса), '
+          'а не от сети. Так делают в частных домах и на дачах.',
+      'Автомат от поражения током не защищает — УЗО нужно на каждой линии.',
+    ),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Что это значит',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: scheme.onSurface,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final entry in _items.entries)
+          _note(context, entry.value, active: entry.key == selected),
+      ],
+    );
+  }
+
+  Widget _note(
+    BuildContext context,
+    (String, String, String) data, {
+    required bool active,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final (name, what, important) = data;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: active
+            ? scheme.primary.withValues(alpha: 0.10)
+            : scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: active ? scheme.primary : Colors.transparent,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                name,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: active ? scheme.primary : scheme.onSurface,
+                ),
+              ),
+              if (active) ...[
+                const SizedBox(width: 6),
+                Icon(Icons.check_circle, size: 14, color: scheme.primary),
+              ],
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            what,
+            style: TextStyle(
+              fontSize: 12.5,
+              height: 1.35,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            important,
+            style: TextStyle(
+              fontSize: 12.5,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+              color: scheme.onSurface,
+            ),
+          ),
+        ],
       ),
     );
   }
