@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/project_draft.dart';
+import '../../plan/plan_geometry.dart';
+import '../../plan/plan_models.dart';
 import '../result/result_screen.dart';
 import 'room_wizard_screen.dart';
 
@@ -41,20 +43,44 @@ class OverviewScreen extends ConsumerWidget {
     return m[t] ?? t.name;
   }
 
+  /// Данные из плана: длина трассы и число точек по комнате.
+  ///
+  /// План опционален: если его нет или комната не найдена, остаются
+  /// значения, введённые руками в визарде.
+  ({double lengthM, int? sockets, int? lights}) _fromPlan(
+    FloorPlan? plan,
+    RoomDraft room,
+  ) {
+    if (plan == null) return (lengthM: 0, sockets: null, lights: null);
+    final planRoom =
+        plan.rooms.where((r) => r.name.trim() == room.name.trim()).firstOrNull;
+    if (planRoom == null) return (lengthM: 0, sockets: null, lights: null);
+    return (
+      lengthM: PlanGeometry.roomLength(plan, planRoom.id),
+      sockets: plan.deviceCount(planRoom.id, PlanPointType.socket),
+      lights: plan.deviceCount(planRoom.id, PlanPointType.light),
+    );
+  }
+
   core.Project _buildProject(ProjectDraft draft) {
     final now = DateTime.now();
     var cid = 1;
 
     final rooms = draft.rooms.map((d) {
       final consumers = <core.Consumer>[];
+      final fromPlan = _fromPlan(draft.plan, d);
+      // Число точек с плана важнее ручного ввода: если розетки расставлены,
+      // считаем именно их.
+      final socketCount = fromPlan.sockets ?? d.socketsNormal;
+      final lightCount = fromPlan.lights ?? d.lights;
 
-      if (d.socketsNormal > 0) {
+      if (socketCount > 0) {
         consumers.add(
           core.Consumer(
             id: 'c_${cid++}',
             type: core.ConsumerType.socket,
             name: 'Розетки',
-            quantity: d.socketsNormal,
+            quantity: socketCount,
           ),
         );
       }
@@ -89,13 +115,13 @@ class OverviewScreen extends ConsumerWidget {
         }
       });
 
-      if (d.lights > 0) {
+      if (lightCount > 0) {
         consumers.add(
           core.Consumer(
             id: 'c_${cid++}',
             type: core.ConsumerType.lightPoint,
             name: 'Свет',
-            quantity: d.lights,
+            quantity: lightCount,
           ),
         );
       }
@@ -115,9 +141,17 @@ class OverviewScreen extends ConsumerWidget {
         id: d.id,
         name: d.name,
         type: d.type,
-        area: d.area > 0 ? d.area : 0,
+        area: d.area > 0
+            ? d.area
+            : (draft.plan?.rooms
+                    .where((r) => r.name.trim() == d.name.trim())
+                    .firstOrNull
+                    ?.rect
+                    .area ??
+                0),
         consumers: consumers,
-        cableLengthM: d.cableLengthM,
+        // Длина из плана (если есть) перекрывает введённую руками.
+        cableLengthM: fromPlan.lengthM > 0 ? fromPlan.lengthM : d.cableLengthM,
       );
     }).toList();
 

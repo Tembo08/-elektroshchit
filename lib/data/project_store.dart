@@ -4,6 +4,7 @@ import 'package:electrical_core/electrical_core.dart' as core;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/project_draft.dart';
+import '../plan/plan_models.dart';
 
 /// Сохранённый проект: черновик + метаданные для списка.
 class SavedProject {
@@ -53,6 +54,7 @@ Map<String, dynamic> draftToJson(ProjectDraft d) => {
       'ceilingHeight': d.ceilingHeight,
       'lightingLines': d.lightingLines,
       'socketLines': d.socketLines,
+      'plan': d.plan?.toJson(),
       'rooms': [
         for (final r in d.rooms)
           {
@@ -143,7 +145,11 @@ ProjectDraft draftFromJson(Map<String, dynamic> json) {
     );
   }
 
+  final planJson = json['plan'];
   return ProjectDraft(
+    plan: planJson is Map
+        ? FloorPlan.fromJson(Map<String, dynamic>.from(planJson))
+        : null,
     name: json['name'] as String? ?? '',
     objectType: objectType,
     phaseSystem: phase,

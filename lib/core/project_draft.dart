@@ -1,6 +1,8 @@
 import 'package:electrical_core/electrical_core.dart' as core;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../plan/plan_models.dart';
+
 /// Прибор, который ставится на отдельную линию.
 class ApplianceSpec {
   final int quantity;
@@ -100,6 +102,9 @@ class ProjectDraft {
   final double totalArea;
   final double ceilingHeight;
   final core.GroundingSystem groundingSystem;
+
+  /// План помещения. null — считаем без плана (длины вводятся руками).
+  final FloorPlan? plan;
   final core.PhaseSystem phaseSystem;
 
   /// Разрешённая мощность по ТУ. 0 — пользователь ещё не ввёл.
@@ -115,6 +120,7 @@ class ProjectDraft {
     this.totalArea = 0,
     this.ceilingHeight = 0,
     this.groundingSystem = core.GroundingSystem.tnCs,
+    this.plan,
     this.objectType,
     this.phaseSystem = core.PhaseSystem.single,
     this.allowedPowerKw = 0,
@@ -132,6 +138,7 @@ class ProjectDraft {
     double? totalArea,
     double? ceilingHeight,
     core.GroundingSystem? groundingSystem,
+    FloorPlan? plan,
     core.PhaseSystem? phaseSystem,
     double? allowedPowerKw,
     int? inputBreakerAmps,
@@ -144,6 +151,7 @@ class ProjectDraft {
       totalArea: totalArea ?? this.totalArea,
       ceilingHeight: ceilingHeight ?? this.ceilingHeight,
       groundingSystem: groundingSystem ?? this.groundingSystem,
+      plan: plan ?? this.plan,
       objectType: objectType ?? this.objectType,
       phaseSystem: phaseSystem ?? this.phaseSystem,
       allowedPowerKw: allowedPowerKw ?? this.allowedPowerKw,
@@ -199,6 +207,9 @@ class ProjectDraftNotifier extends Notifier<ProjectDraft> {
       groundingSystem: groundingSystem,
     );
   }
+
+  /// План помещения (или null, чтобы вернуться к ручным длинам).
+  void setPlan(FloorPlan? plan) => state = state.copyWith(plan: plan);
 
   void setInput({required double allowedPowerKw, int? breakerAmps}) {
     state = state.copyWith(

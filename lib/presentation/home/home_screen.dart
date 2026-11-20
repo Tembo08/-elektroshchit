@@ -7,11 +7,26 @@ import '../../core/providers.dart';
 import '../project/object_type_screen.dart';
 import '../projects/projects_screen.dart';
 import '../about/about_screen.dart';
+import '../plan/plan_editor_screen.dart';
 import 'panel_styles.dart';
 import '../tips/tips_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
+
+  /// План помещения: длины трасс считаются по геометрии.
+  void _openPlan(BuildContext context, WidgetRef ref) {
+    final draft = ref.read(projectDraftProvider);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PlanEditorScreen(
+          draft: draft,
+          onChanged: (plan) =>
+              ref.read(projectDraftProvider.notifier).setPlan(plan),
+        ),
+      ),
+    );
+  }
 
   /// Новый проект всегда начинается с чистого черновика: иначе после
   /// возврата домой «Начать проект» открывал старые комнаты.
@@ -88,6 +103,12 @@ class HomeScreen extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () => _openPlan(context, ref),
+                            icon: const Icon(Icons.architecture),
+                            label: const Text('План помещения'),
+                          ),
+                          const SizedBox(height: 10),
                           OutlinedButton.icon(
                             onPressed: () {
                               Navigator.of(context).push(

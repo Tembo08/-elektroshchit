@@ -13,6 +13,8 @@ import 'package:elektroshchit/presentation/home/home_screen.dart';
 import 'package:elektroshchit/presentation/project/object_type_screen.dart';
 import 'package:elektroshchit/presentation/project/overview_screen.dart';
 import 'package:elektroshchit/presentation/project/room_wizard_screen.dart';
+import 'package:elektroshchit/presentation/plan/plan_editor_screen.dart';
+import 'package:elektroshchit/plan/plan_canvas.dart';
 import 'package:elektroshchit/presentation/project/rooms_flow_screen.dart';
 import 'package:elektroshchit/presentation/projects/projects_screen.dart';
 import 'package:elektroshchit/presentation/result/result_screen.dart';
@@ -336,6 +338,44 @@ void main() {
       ),
     );
     await snap(tester, '06_result');
+  });
+
+  testWidgets('08 план помещения', (tester) async {
+    phone(tester);
+    addTearDown(tester.view.reset);
+    addTearDown(tester.view.resetPadding);
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: shotTheme(),
+          debugShowCheckedModeBanner: false,
+          home: PlanEditorScreen(
+            draft: const ProjectDraft(),
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Собираем план прямо в редакторе: комнаты и точки.
+    final state = tester.state(find.byType(PlanEditorScreen));
+    // Добавляем комнаты через жесты: тап по пустому месту.
+    final canvas = find.byType(PlanCanvas);
+    expect(canvas, findsOneWidget);
+
+    // Комната 1 (левая верхняя), комната 2 (правая нижняя).
+    await tester.tapAt(tester.getTopLeft(canvas) + const Offset(90, 90));
+    await tester.pumpAndSettle();
+    await tester.tapAt(tester.getTopLeft(canvas) + const Offset(240, 250));
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('store_shots/08_plan.png'),
+    );
+    expect(state, isNotNull);
   });
 
   testWidgets('07 проекты', (tester) async {
