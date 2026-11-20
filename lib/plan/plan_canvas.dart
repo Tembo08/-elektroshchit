@@ -541,60 +541,24 @@ class _PlanPainter extends CustomPainter {
       switch (opening.type) {
         case PlanOpeningType.door:
         case PlanOpeningType.entry:
-          final radius = (b - a).distance;
-          final paint = Paint()
-            ..color = PlanInk.ink
-            ..strokeWidth = 1.2;
-
-          // наличники: короткие поперечные штрихи на краях проёма
-          final normal =
-              opening.horizontal ? const Offset(0, 1) : const Offset(1, 0);
-          final jamb = normal * (wall / 2 + 1.5);
-          canvas.drawLine(a - jamb, a + jamb, paint);
-          canvas.drawLine(b - jamb, b + jamb, paint);
-
-          // полотно двери — перпендикулярно стене, от петли
-          final leaf = opening.horizontal
-              ? Offset(0, -radius)
-              : Offset(radius, 0);
-          canvas.drawLine(a, a + leaf, paint);
-
-          // дуга открывания
-          final start = opening.horizontal ? -math.pi / 2 : 0.0;
-          canvas.drawArc(
-            Rect.fromCircle(center: a, radius: radius),
-            start,
-            math.pi / 2,
-            false,
-            paint,
-          );
-
-          if (opening.type == PlanOpeningType.entry) {
-            canvas.drawLine(
-              a,
-              b,
-              Paint()
-                ..color = PlanInk.ink
-                ..strokeWidth = 2.4,
-            );
-          }
+          // Только проём: вырезаем участок стены, без полотна и дуги.
+          break;
         case PlanOpeningType.window:
-          // окно: две линии по краям проёма и линия остекления посередине
           final normal =
               opening.horizontal ? const Offset(0, 1) : const Offset(1, 0);
-          final paint = Paint()
-            ..color = PlanInk.ink
-            ..strokeWidth = 1.1;
-          canvas.drawLine(a, b, paint);
           canvas.drawLine(
-            a - normal * wall / 2,
-            b - normal * wall / 2,
-            paint,
+            a,
+            b,
+            Paint()
+              ..color = PlanInk.inkSoft
+              ..strokeWidth = 1.0,
           );
           canvas.drawLine(
-            a + normal * wall / 2,
-            b + normal * wall / 2,
-            paint,
+            a + normal * wall / 4,
+            b + normal * wall / 4,
+            Paint()
+              ..color = PlanInk.inkSoft
+              ..strokeWidth = 0.8,
           );
       }
     }
