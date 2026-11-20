@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/project_draft.dart';
-import '../plan/svg_import_screen.dart';
 import '../../plan/plan_geometry.dart';
 import '../../plan/plan_models.dart';
 import '../result/result_screen.dart';
@@ -183,70 +182,6 @@ class OverviewScreen extends ConsumerWidget {
     );
   }
 
-  /// Импорт плана из Corel/Inkscape: слои SVG → стены, проёмы, символы.
-  Widget _svgCard(
-    BuildContext context,
-    WidgetRef ref,
-    ProjectDraft draft,
-    ColorScheme scheme,
-  ) {
-    final plan = draft.plan;
-    final walls = plan?.walls.length ?? 0;
-    final devices = plan?.devices.length ?? 0;
-
-    void open() => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const SvgImportScreen()),
-        );
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: open,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.draw_outlined, size: 18, color: scheme.primary),
-                  const SizedBox(width: 6),
-                  const Expanded(
-                    child: Text(
-                      'План из Corel / Inkscape',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                walls > 0
-                    ? 'Стен: $walls · точек: $devices'
-                    : 'Нарисуйте план в привычном редакторе и импортируйте SVG',
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.3,
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              FilledButton.tonalIcon(
-                onPressed: open,
-                icon: const Icon(Icons.upload_file_outlined, size: 16),
-                label: Text(walls > 0 ? 'Обновить план' : 'Импорт SVG'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _roomCard(
     BuildContext context,
     WidgetRef ref,
@@ -337,10 +272,6 @@ class OverviewScreen extends ConsumerWidget {
                     spacing: 12,
                     runSpacing: 12,
                     children: [
-                      SizedBox(
-                        width: width,
-                        child: _svgCard(context, ref, draft, scheme),
-                      ),
                       for (final r in rooms)
                         SizedBox(
                           width: width,
