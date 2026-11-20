@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/project_draft.dart';
-import '../../plan/plan_auto.dart';
+import '../../plan/plan_layout.dart';
 import '../../plan/plan_canvas.dart';
 import '../../plan/plan_models.dart';
 import 'plan_editor_screen.dart';
@@ -34,7 +34,8 @@ class PlanSheetScreen extends ConsumerWidget {
             tooltip: 'Изменить вручную',
             icon: const Icon(Icons.edit_outlined),
             onPressed: () {
-              final built = PlanAuto.build(draft: draft, result: result);
+              // Сейчас шаг «геометрия»: планировка из PlanLayout.
+          final built = _layoutOnly(draft);
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => PlanEditorScreen(
@@ -54,7 +55,8 @@ class PlanSheetScreen extends ConsumerWidget {
           // ПК: альбомный лист — план слева на 80 %, справа колонка данных.
           // Телефон: план сверху во всю ширину, данные ниже.
           final wide = constraints.maxWidth > 720;
-          final built = PlanAuto.build(draft: draft, result: result);
+          // Сейчас шаг «геометрия»: планировка из PlanLayout.
+          final built = _layoutOnly(draft);
           final sheet = _sheet(context, built, ref);
 
           if (wide) {
@@ -96,6 +98,14 @@ class PlanSheetScreen extends ConsumerWidget {
     );
   }
 
+  /// Только геометрия: комнаты, стены, двери. Электрику добавим позже.
+  ({FloorPlan plan, Map<String, String> groupLabels}) _layoutOnly(
+    ProjectDraft draft,
+  ) {
+    final plan = PlanLayout.build(draft);
+    return (plan: plan, groupLabels: const <String, String>{});
+  }
+
   /// Белый лист чертежа — во всю доступную площадь.
   Widget _sheet(
     BuildContext context,
@@ -125,6 +135,7 @@ class PlanSheetScreen extends ConsumerWidget {
           child: PlanCanvas(
             plan: plan,
             showGrid: false,
+            showElectrical: false,
             tool: PlanTool.rooms,
             onTap: (_) {},
             onRoomGrab: (_, _) {},
@@ -165,12 +176,68 @@ class PlanSheetScreen extends ConsumerWidget {
       children: [
         _explication(context, scheme, plan),
         const SizedBox(height: 10),
-        _legend(context, scheme),
-        const SizedBox(height: 10),
-        _groupsTable(context, scheme),
+        // Шаг «геометрия»: электрики на плане пока нет, поэтому и легенда
+        // с группами не нужна — показываем только пояснение к плану.
+        _geometryNote(context, scheme, plan),
         const SizedBox(height: 10),
         _stamp(context, scheme, sockets, lights, switches),
       ],
+    );
+  }
+
+  /// Пояснение к плану на этапе геометрии.
+  Widget _geometryNote(BuildContext context, ColorScheme scheme, FloorPlan plan) {
+    final area =
+        plan.rooms.fold<double>(0, (s, r) => s + r.rect.area);
+    final doors = plan.doors.length;
+    final entrance = plan.doors.where((d) => d.entrance).length;
+
+    Widget row(String label, String value) => Padding(
+          padding: const EdgeInsets.only(bottom: 3),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Text(value, style: const TextStyle(fontSize: 12)),
+            ],
+          ),
+        );
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'О плане',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            row('Площадь по плану', '${area.toStringAsFixed(1)} м²'),
+            row('Помещений', '${plan.rooms.length}'),
+            row('Дверей', '$doors (входных: $entrance)'),
+            const SizedBox(height: 6),
+            Text(
+              'Геометрия построена автоматически по площадям комнат. '
+              'Стены, проёмы и балкон — схематично, без размеров.',
+              style: TextStyle(
+                fontSize: 11,
+                height: 1.3,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -237,6 +304,9 @@ class PlanSheetScreen extends ConsumerWidget {
     );
   }
 
+  // Легенда и таблица групп понадобятся на следующем шаге (электрика).
+  // Держим их в файле, чтобы не потерять разметку.
+  // ignore: unused_element
   Widget _legend(BuildContext context, ColorScheme scheme) {
     final items = [
       (_LegendKind.socket, 'Розетка'),
@@ -330,6 +400,7 @@ class PlanSheetScreen extends ConsumerWidget {
     );
   }
 
+  // ignore: unused_element
   Widget _groupsTable(BuildContext context, ColorScheme scheme) {
     final groups = result.groups;
     return Card(

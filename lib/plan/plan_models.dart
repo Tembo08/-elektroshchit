@@ -198,6 +198,52 @@ class PlanDevice {
   }
 }
 
+/// Дверной проём на плане.
+class PlanDoor {
+  /// Начало проёма (левый/верхний край), метры.
+  final double x;
+  final double y;
+
+  /// Проём в горизонтальной стене (true) или в вертикальной (false).
+  final bool horizontal;
+
+  /// Ширина проёма, м.
+  final double width;
+
+  /// Входная дверь — рисуем толще.
+  final bool entrance;
+
+  /// Дуга открывания вниз (дверь в верхней стене комнаты).
+  final bool inwardDown;
+
+  const PlanDoor({
+    required this.x,
+    required this.y,
+    required this.width,
+    this.horizontal = true,
+    this.entrance = false,
+    this.inwardDown = false,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'x': x,
+        'y': y,
+        'w': width,
+        'h': horizontal,
+        'entrance': entrance,
+        'down': inwardDown,
+      };
+
+  static PlanDoor fromJson(Map<String, dynamic> json) => PlanDoor(
+        x: (json['x'] as num?)?.toDouble() ?? 0,
+        y: (json['y'] as num?)?.toDouble() ?? 0,
+        width: (json['w'] as num?)?.toDouble() ?? 0.8,
+        horizontal: json['h'] as bool? ?? true,
+        entrance: json['entrance'] as bool? ?? false,
+        inwardDown: json['down'] as bool? ?? false,
+      );
+}
+
 /// План помещения целиком.
 class FloorPlan {
   final double widthM;
@@ -210,6 +256,9 @@ class FloorPlan {
   /// null — трассы вести напрямую (ручной режим).
   final double? corridorY;
 
+  /// Дверные проёмы.
+  final List<PlanDoor> doors;
+
   const FloorPlan({
     this.widthM = 9,
     this.heightM = 9,
@@ -217,6 +266,7 @@ class FloorPlan {
     this.devices = const [],
     this.panel = const PlanPanel(x: 0.8, y: 0.8),
     this.corridorY,
+    this.doors = const [],
   });
 
   bool get isEmpty => rooms.isEmpty && devices.isEmpty;
@@ -228,6 +278,7 @@ class FloorPlan {
     List<PlanDevice>? devices,
     PlanPanel? panel,
     double? corridorY,
+    List<PlanDoor>? doors,
   }) =>
       FloorPlan(
         widthM: widthM ?? this.widthM,
@@ -236,6 +287,7 @@ class FloorPlan {
         devices: devices ?? this.devices,
         panel: panel ?? this.panel,
         corridorY: corridorY ?? this.corridorY,
+        doors: doors ?? this.doors,
       );
 
   /// Точки выбранного типа в комнате — для подсчёта количества.
@@ -251,6 +303,7 @@ class FloorPlan {
         'h': heightM,
         'panel': panel.toJson(),
         'corridor': corridorY,
+        'doors': [for (final d in doors) d.toJson()],
         'rooms': [for (final r in rooms) r.toJson()],
         'devices': [for (final d in devices) d.toJson()],
       };
@@ -265,6 +318,12 @@ class FloorPlan {
         Map<String, dynamic>.from(json['panel'] as Map? ?? const {}),
       ),
       corridorY: (json['corridor'] as num?)?.toDouble(),
+      doors: json['doors'] is List
+          ? [
+              for (final d in json['doors'] as List)
+                if (d is Map) PlanDoor.fromJson(Map<String, dynamic>.from(d)),
+            ]
+          : const [],
       rooms: roomsRaw is List
           ? [
               for (final r in roomsRaw)

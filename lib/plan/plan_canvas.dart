@@ -50,6 +50,9 @@ class PlanCanvas extends StatelessWidget {
   /// Сетка нужна в редакторе (привязка), но на монтажном листе это шум.
   final bool showGrid;
 
+  /// Электрика: на этапе геометрии щит и точки скрыты.
+  final bool showElectrical;
+
   final void Function(Offset meters) onTap;
   final void Function(String roomId, PlanEdge? edge) onRoomGrab;
   final void Function(String roomId, Offset pointMeters) onRoomDragTo;
@@ -78,6 +81,7 @@ class PlanCanvas extends StatelessWidget {
     this.groupLabels = const {},
     this.panelNote,
     this.showGrid = true,
+    this.showElectrical = true,
   });
 
   @override
@@ -183,6 +187,7 @@ class PlanCanvas extends StatelessWidget {
               groupLabels: groupLabels,
               panelNote: panelNote,
               showGrid: showGrid,
+              showElectrical: showElectrical,
               selectedRoomId: selectedRoomId,
               selectedDeviceId: selectedDeviceId,
             ),
@@ -225,6 +230,7 @@ class _PlanPainter extends CustomPainter {
   final Map<String, String> groupLabels;
   final String? panelNote;
   final bool showGrid;
+  final bool showElectrical;
 
   /// Отложенные подписи групп: рисуются поверх щита и символов.
   final List<(Offset, String)> _pendingLabels = [];
@@ -236,6 +242,7 @@ class _PlanPainter extends CustomPainter {
     required this.fontFamily,
     required this.groupLabels,
     required this.showGrid,
+    required this.showElectrical,
     this.panelNote,
     this.selectedRoomId,
     this.selectedDeviceId,
@@ -249,12 +256,18 @@ class _PlanPainter extends CustomPainter {
     _sheet(canvas);
     if (showGrid) _grid(canvas);
     _rooms(canvas);
-    _wires(canvas);
-    _devices(canvas);
+    if (showElectrical) {
+      _wires(canvas);
+      _devices(canvas);
+    }
     _doors(canvas);
-    _panel(canvas);
-    _roomLabels(canvas);
-    _groupLabels(canvas);
+    if (showElectrical) _panel(canvas);
+    if (showElectrical) {
+      _roomLabels(canvas);
+      _groupLabels(canvas);
+    } else {
+      _roomLabels(canvas);
+    }
     _scaleBar(canvas);
   }
 
@@ -483,26 +496,51 @@ class _PlanPainter extends CustomPainter {
     label.paint(canvas, Offset(x1 + 4, y - label.height / 2));
   }
 
-  /// Двери: разрыв в стене + дуга открывания.
+  /// Двери из модели плана: проём в стене + дуга открывания.
   void _doors(Canvas canvas) {
+    if (plan.doors.isEmpty) return;
+
     final wipe = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 4.2;
+      ..strokeWidth = 9.0;
     final ink = Paint()
       ..color = PlanInk.ink
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
 
-    final doorWidth = 0.9 * scale;
+    for (final door in plan.doors) {
+      final w = door.width * scale;
+      final start = _px(door.x, door.y);
+      final end = door.horizontal
+          ? start + Offset(w, 0)
+          : start + Offset(0, w);
 
-    for (final room in plan.rooms) {
-      if (room.rect.width < 2.2 || room.rect.height < 2.2) continue;
-      final left = _px(room.rect.left + 0.4, room.rect.bottom);
-      canvas.drawLine(left, left + Offset(doorWidth, 0), wipe);
+      canvas.drawLine(start, end, wipe);
+      if (door.entrance) {
+        // входная дверь: полотно + порог, чтобы её было видно на контуре
+        canvas.drawLine(
+          start,
+          end,
+          Paint()
+            ..color = PlanInk.ink
+            ..strokeWidth = 3.0,
+        );
+        final normal = door.horizontal ? const Offset(0, 1) : const Offset(1, 0);
+        canvas.drawLine(
+          start - normal * 3,
+          end - normal * 3,
+          Paint()
+            ..color = PlanInk.inkSoft
+            ..strokeWidth = 1.2,
+        );
+      }
+
+      // Дуга открывания: в комнату, а не в коридор.
+      final sweepStart = door.inwardDown ? math.pi : -math.pi / 2;
       canvas.drawArc(
-        Rect.fromCircle(center: left, radius: doorWidth),
-        -math.pi / 2,
+        Rect.fromCircle(center: start, radius: w),
+        sweepStart,
         math.pi / 2,
         false,
         ink,
@@ -709,5 +747,6 @@ class _PlanPainter extends CustomPainter {
       old.fontFamily != fontFamily ||
       old.groupLabels != groupLabels ||
       old.panelNote != panelNote ||
-      old.showGrid != showGrid;
+      old.showGrid != showGrid ||
+      old.showElectrical != showElectrical;
 }
