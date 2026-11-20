@@ -219,12 +219,12 @@ class PlanAuto {
           final indexInRow = s % perRow;
           // Ряды идут от нижней стены вверх: верх комнаты оставляем под
           // название, иначе подпись перекрывается символами.
-          final dy = rect.bottom - 0.25 - row * 0.45;
-          final dx = rect.left + 0.3 + indexInRow * step;
+          final dy = rect.bottom - 0.12 - row * 0.45;
+          final dx = rect.left + 0.18 + indexInRow * step;
           devices.add(PlanDevice(
             id: id('s'),
             type: PlanPointType.socket,
-            x: _q(math.min(dx, rect.right - 0.25)),
+            x: _q(math.min(dx, rect.right - 0.18)),
             y: _q(dy),
             roomId: room.id,
           ));
@@ -261,8 +261,8 @@ class PlanAuto {
         devices.add(PlanDevice(
           id: id('w'),
           type: PlanPointType.switchPoint,
-          x: _q(rect.left + 0.25 + w * 0.25),
-          y: _q(rect.bottom - 0.2),
+          x: _q(rect.left + 0.18 + w * 0.25),
+          y: _q(rect.bottom - 0.12),
           roomId: room.id,
         ));
       }
@@ -273,8 +273,8 @@ class PlanAuto {
         devices.add(PlanDevice(
           id: id('p'),
           type: PlanPointType.powerful,
-          x: _q(rect.right - 0.35),
-          y: _q(rect.bottom - 0.25),
+          x: _q(rect.right - 0.18),
+          y: _q(rect.bottom - 0.12),
           roomId: room.id,
         ));
       }

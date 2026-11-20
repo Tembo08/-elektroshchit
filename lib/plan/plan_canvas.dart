@@ -394,7 +394,7 @@ class _PlanPainter extends CustomPainter {
         final paint = Paint()
           ..color = colors[i]
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.9
+          ..strokeWidth = 0.7
           ..strokeJoin = StrokeJoin.round;
 
         final path = Path();
