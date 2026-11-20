@@ -73,27 +73,39 @@ class _ObjectTypeScreenState extends ConsumerState<ObjectTypeScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Объект')),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
         children: [
             const Text(
               'Тип объекта',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 12),
-            _choiceCard(
-              title: 'Квартира',
-              selected: _objectType == core.ObjectType.apartment,
-              onTap: () =>
-                  setState(() => _objectType = core.ObjectType.apartment),
-            ),
             const SizedBox(height: 10),
-            _choiceCard(
-              title: 'Дом',
-              selected: _objectType == core.ObjectType.privateHouse,
-              onTap: () =>
-                  setState(() => _objectType = core.ObjectType.privateHouse),
+            Row(
+              children: [
+                Expanded(
+                  child: _choiceCard(
+                    title: 'Квартира',
+                    icon: Icons.apartment,
+                    selected: _objectType == core.ObjectType.apartment,
+                    onTap: () => setState(
+                      () => _objectType = core.ObjectType.apartment,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _choiceCard(
+                    title: 'Дом',
+                    icon: Icons.cottage,
+                    selected: _objectType == core.ObjectType.privateHouse,
+                    onTap: () => setState(
+                      () => _objectType = core.ObjectType.privateHouse,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 16),
             const Text(
               'Фазы',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
@@ -160,19 +172,10 @@ class _ObjectTypeScreenState extends ConsumerState<ObjectTypeScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             const Text(
               'Система заземления',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Для TT все линии обязаны быть под УЗО — приложение проверит '
-              'и подскажет.',
-              style: TextStyle(
-                fontSize: 13,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
             ),
             const SizedBox(height: 10),
             SegmentedButton<core.GroundingSystem>(
@@ -196,15 +199,29 @@ class _ObjectTypeScreenState extends ConsumerState<ObjectTypeScreen> {
                 _saveMeta();
               },
             ),
-            const SizedBox(height: 24),
-            _GroundingNotes(selected: _grounding),
-            const SizedBox(height: 96),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => _showGroundingHelp(context),
+                icon: const Icon(Icons.help_outline, size: 18),
+                label: const Text('Что значат TN-C-S, TN-S и TT?'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  minimumSize: const Size(0, 36),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
+            const SizedBox(height: 88),
           ],
         ),
+        // SafeArea отводит место под системную панель навигации,
+        // Padding добавляет «дыхание», чтобы кнопка не прилипала к ней.
         bottomNavigationBar: SafeArea(
-          minimum: const EdgeInsets.fromLTRB(20, 0, 20, 12),
           child: Padding(
-            padding: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
             child: SizedBox(
               height: 52,
               child: FilledButton(
@@ -231,8 +248,49 @@ class _ObjectTypeScreenState extends ConsumerState<ObjectTypeScreen> {
     );
   }
 
+  /// Расшифровка систем заземления: постоянная карточка не влезала на
+  /// экран телефона и вытесняла сам переключатель под кнопку.
+  void _showGroundingHelp(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Системы заземления',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Выбирайте ту, что указана в проекте дома или в ТУ. '
+                'Если не знаете — уточните у электрика, обслуживающего дом.',
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.35,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 14),
+              for (final entry in _groundingNotes.entries)
+                _GroundingCard(
+                  data: entry.value,
+                  active: entry.key == _grounding,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _choiceCard({
     required String title,
+    required IconData icon,
     required bool selected,
     required VoidCallback onTap,
   }) {
@@ -246,7 +304,8 @@ class _ObjectTypeScreenState extends ConsumerState<ObjectTypeScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+          height: 76,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
@@ -254,12 +313,23 @@ class _ObjectTypeScreenState extends ConsumerState<ObjectTypeScreen> {
               width: selected ? 2 : 1,
             ),
           ),
-          child: Text(
-            title,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-            ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 22,
+                color: selected ? scheme.primary : scheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -268,73 +338,27 @@ class _ObjectTypeScreenState extends ConsumerState<ObjectTypeScreen> {
 }
 
 
-/// Подсказки по системам заземления: без них аббревиатуры ничего не говорят.
-class _GroundingNotes extends StatelessWidget {
-  final core.GroundingSystem selected;
+/// Расшифровки систем заземления: что это и чем важно на практике.
+class _GroundingCard extends StatelessWidget {
+  final (String, String, String) data;
+  final bool active;
 
-  const _GroundingNotes({required this.selected});
-
-  static const _items = {
-    core.GroundingSystem.tnCs: (
-      'TN-C-S',
-      'Самый частый вариант в домах: щит питается четырьмя проводами (PEN), '
-          'на вводе PEN делится на N и PE. Дальше по квартире — отдельные '
-          'нулевой и защитный проводники.',
-      'УЗО обязательно: разрыв PEN опасен, защищает именно УЗО.',
-    ),
-    core.GroundingSystem.tnS: (
-      'TN-S',
-      'Пять проводов от подстанции: нулевой и защитный идут раздельно по '
-          'всей линии. Так делают в новых домах и по проекту.',
-      'Самый предсказуемый вариант, но требует пятижильного ввода.',
-    ),
-    core.GroundingSystem.tt: (
-      'TT',
-      'Защитный проводник идёт от собственного заземлителя (штыри, полоса), '
-          'а не от сети. Так делают в частных домах и на дачах.',
-      'Автомат от поражения током не защищает — УЗО нужно на каждой линии.',
-    ),
-  };
+  const _GroundingCard({required this.data, required this.active});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Что это значит',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: scheme.onSurface,
-          ),
-        ),
-        const SizedBox(height: 8),
-        for (final entry in _items.entries)
-          _note(context, entry.value, active: entry.key == selected),
-      ],
-    );
-  }
-
-  Widget _note(
-    BuildContext context,
-    (String, String, String) data, {
-    required bool active,
-  }) {
-    final scheme = Theme.of(context).colorScheme;
-    final (name, what, important) = data;
+    final (title, what, important) = data;
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
         color: active
             ? scheme.primary.withValues(alpha: 0.10)
             : scheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: active ? scheme.primary : Colors.transparent,
-          width: 1,
+          color: active ? scheme.primary.withValues(alpha: 0.55) : Colors.transparent,
         ),
       ),
       child: Column(
@@ -342,21 +366,21 @@ class _GroundingNotes extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(
-                name,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: active ? scheme.primary : scheme.onSurface,
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: active ? scheme.primary : scheme.onSurface,
+                  ),
                 ),
               ),
-              if (active) ...[
-                const SizedBox(width: 6),
-                Icon(Icons.check_circle, size: 14, color: scheme.primary),
-              ],
+              if (active)
+                Icon(Icons.check_circle, size: 16, color: scheme.primary),
             ],
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 4),
           Text(
             what,
             style: TextStyle(
@@ -365,7 +389,7 @@ class _GroundingNotes extends StatelessWidget {
               color: scheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 4),
           Text(
             important,
             style: TextStyle(
@@ -380,3 +404,28 @@ class _GroundingNotes extends StatelessWidget {
     );
   }
 }
+
+/// Пояснения по системам заземления. Общие для карточки и нижнего листа.
+const _groundingNotes = {
+  core.GroundingSystem.tnCs: (
+    'TN-C-S — самая частая схема в домах',
+    'К щиту идут четыре провода (фазы и совмещённый PEN), на вводе PEN '
+        'делится на нулевой N и защитный PE. Дальше по квартире они идут '
+        'раздельно.',
+    'Если PEN оборвётся до деления, корпуса приборов окажутся под '
+        'напряжением — поэтому УЗО обязательно.',
+  ),
+  core.GroundingSystem.tnS: (
+    'TN-S — пять проводов от подстанции',
+    'Нулевой и защитный проводники разделены по всей линии, начиная от '
+        'трансформатора. Так делают в новых домах и по проекту.',
+    'Самый предсказуемый вариант. Требует пятижильного ввода: три фазы, N и PE.',
+  ),
+  core.GroundingSystem.tt: (
+    'TT — заземление своё, от сети не зависит',
+    'Защитный проводник идёт от собственного заземлителя: штырей, полосы или '
+        'контура. Так делают в частных домах и на дачах.',
+    'Автомат от поражения током не защищает, поэтому УЗО нужно на каждой '
+        'линии — приложение это проверит.',
+  ),
+};

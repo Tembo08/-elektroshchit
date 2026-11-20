@@ -7,7 +7,7 @@ class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
   /// Держать в одном месте с pubspec.yaml (version: 1.0.1+2).
-  static const _version = '1.0.1';
+  static const _version = '1.0.2';
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +15,12 @@ class AboutScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('О приложении')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          16,
+          20,
+          32 + MediaQuery.paddingOf(context).bottom,
+        ),
         children: [
           Row(
             children: [

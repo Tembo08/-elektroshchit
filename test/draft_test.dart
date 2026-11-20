@@ -143,7 +143,7 @@ void main() {
     expect(find.text('2.8'), findsOneWidget);
     // «TT» теперь в двух местах: сегмент переключателя и карточка-пояснение.
     expect(find.text('TT'), findsWidgets);
-    expect(find.textContaining('УЗО нужно на каждой линии'), findsOneWidget);
+    expect(find.textContaining('Что значат TN-C-S'), findsOneWidget);
   });
 
   testWidgets('кнопка «Готово» закреплена снизу и не тонет под панелью',
@@ -172,13 +172,60 @@ void main() {
     expect(top, greaterThan(600));
   });
 
+  group('кнопки не прячутся под системной панелью', () {
+    // Телефон с тремя кнопками навигации: 48 dp на панель снизу.
+    void phoneWithNavBar(WidgetTester tester) {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3.0;
+      tester.view.padding = const FakeViewPadding(bottom: 144);
+    }
+
+    testWidgets('«Готово» в визарде комнаты выше панели', (tester) async {
+      phoneWithNavBar(tester);
+      addTearDown(tester.view.reset);
+      addTearDown(tester.view.resetPadding);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(home: RoomWizardScreen(norms: norms)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final screenBottom = 2400 / 3.0 - 144 / 3.0; // 752 логических px
+      final button = tester.getRect(find.text('Готово'));
+      expect(button.bottom, lessThanOrEqualTo(screenBottom),
+          reason: 'кнопка не должна заходить под системную панель');
+      // И она должна быть реально большой, а не обрезанной полоской.
+      expect(button.height, greaterThan(14));
+    });
+
+    testWidgets('«Далее» на экране «Объект» выше панели', (tester) async {
+      phoneWithNavBar(tester);
+      addTearDown(tester.view.reset);
+      addTearDown(tester.view.resetPadding);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(home: ObjectTypeScreen(norms: norms)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final screenBottom = 2400 / 3.0 - 144 / 3.0;
+      final button = tester.getRect(find.text('Далее'));
+      expect(button.bottom, lessThanOrEqualTo(screenBottom));
+      expect(button.height, greaterThan(14));
+    });
+  });
+
   testWidgets('экран «О приложении» показывает политику и версию',
       (tester) async {
     await tester.pumpWidget(const MaterialApp(home: AboutScreen()));
     await tester.pumpAndSettle();
 
     expect(find.text('Электрощит'), findsOneWidget);
-    expect(find.textContaining('Версия 1.0.1'), findsOneWidget);
+    expect(find.textContaining('Версия 1.0.2'), findsOneWidget);
     expect(find.textContaining('не собирает и не передаёт'), findsOneWidget);
     expect(find.textContaining('черновик'), findsOneWidget);
   });

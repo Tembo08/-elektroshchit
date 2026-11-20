@@ -45,7 +45,12 @@ class TipsScreen extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          12,
+          16,
+          32 + MediaQuery.paddingOf(context).bottom,
+        ),
         children: [
           Text(
             'Короткие правила, которые чаще всего спасают от переделок. '

@@ -318,8 +318,9 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'Длина трассы до щита, м',
-                helperText:
-                    'Нужна для проверки падения напряжения. Пусто — не проверять',
+                helperText: 'Для расчёта падения напряжения, '
+                    'пусто — не проверять',
+                helperMaxLines: 2,
                 border: OutlineInputBorder(),
               ),
               onChanged: (_) => _dirty = true,
@@ -381,7 +382,7 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
             ),
             _stepper(
-              label: 'Лампочки / светильники',
+              label: 'Светильники',
               value: _lights,
               onChanged: (v) => setState(() {
                 _dirty = true;
@@ -408,10 +409,11 @@ class _RoomWizardScreenState extends State<RoomWizardScreen> {
         ),
         // Кнопка живёт в bottomNavigationBar: она всегда под рукой и не
         // уезжает под системную панель навигации (SafeArea).
+        // SafeArea отводит место под системную панель навигации,
+        // Padding добавляет «дыхание», чтобы кнопка не прилипала к ней.
         bottomNavigationBar: SafeArea(
-          minimum: const EdgeInsets.fromLTRB(20, 0, 20, 12),
           child: Padding(
-            padding: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
             child: SizedBox(
               height: 52,
               child: FilledButton(
