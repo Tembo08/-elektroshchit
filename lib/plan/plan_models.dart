@@ -267,6 +267,16 @@ class FloorPlan {
   /// Проёмы: двери и окна, вырезанные из стен.
   final List<PlanOpening> openings;
 
+  /// Подложка: путь к картинке плана (фото, скан, экспорт из Corel).
+  final String? underlayPath;
+
+  /// Размер картинки в пикселях — нужен, чтобы пересчитывать масштаб.
+  final double underlayWidthPx;
+  final double underlayHeightPx;
+
+  /// Сколько метров в одном пикселе картинки. 0 — масштаб не задан.
+  final double metersPerPixel;
+
   const FloorPlan({
     this.widthM = 9,
     this.heightM = 9,
@@ -277,6 +287,10 @@ class FloorPlan {
     this.doors = const [],
     this.walls = const [],
     this.openings = const [],
+    this.underlayPath,
+    this.underlayWidthPx = 0,
+    this.underlayHeightPx = 0,
+    this.metersPerPixel = 0,
   });
 
   bool get isEmpty => rooms.isEmpty && devices.isEmpty;
@@ -291,6 +305,10 @@ class FloorPlan {
     List<PlanDoor>? doors,
     List<PlanWall>? walls,
     List<PlanOpening>? openings,
+    String? underlayPath,
+    double? underlayWidthPx,
+    double? underlayHeightPx,
+    double? metersPerPixel,
   }) =>
       FloorPlan(
         widthM: widthM ?? this.widthM,
@@ -302,6 +320,10 @@ class FloorPlan {
         doors: doors ?? this.doors,
         walls: walls ?? this.walls,
         openings: openings ?? this.openings,
+        underlayPath: underlayPath ?? this.underlayPath,
+        underlayWidthPx: underlayWidthPx ?? this.underlayWidthPx,
+        underlayHeightPx: underlayHeightPx ?? this.underlayHeightPx,
+        metersPerPixel: metersPerPixel ?? this.metersPerPixel,
       );
 
   /// Точки выбранного типа в комнате — для подсчёта количества.
@@ -329,6 +351,10 @@ class FloorPlan {
             },
         ],
         'openings': [for (final o in openings) o.toJson()],
+        'underlay': underlayPath,
+        'underlayW': underlayWidthPx,
+        'underlayH': underlayHeightPx,
+        'mpp': metersPerPixel,
         'rooms': [for (final r in rooms) r.toJson()],
         'devices': [for (final d in devices) d.toJson()],
       };
@@ -366,6 +392,10 @@ class FloorPlan {
                   ),
             ]
           : const [],
+      underlayPath: json['underlay'] as String?,
+      underlayWidthPx: (json['underlayW'] as num?)?.toDouble() ?? 0,
+      underlayHeightPx: (json['underlayH'] as num?)?.toDouble() ?? 0,
+      metersPerPixel: (json['mpp'] as num?)?.toDouble() ?? 0,
       openings: json['openings'] is List
           ? [
               for (final o in json['openings'] as List)

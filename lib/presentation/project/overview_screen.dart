@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:electrical_core/electrical_core.dart' as core;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/project_draft.dart';
+import '../plan/underlay_screen.dart';
 import '../../plan/plan_geometry.dart';
 import '../../plan/plan_models.dart';
 import '../result/result_screen.dart';
@@ -182,6 +185,73 @@ class OverviewScreen extends ConsumerWidget {
     );
   }
 
+  /// Вход в план по подложке: фото плана + символы поверх.
+  Widget _underlayCard(
+    BuildContext context,
+    WidgetRef ref,
+    ProjectDraft draft,
+    ColorScheme scheme,
+  ) {
+    final plan = draft.plan;
+    final hasImage =
+        plan?.underlayPath != null && File(plan!.underlayPath!).existsSync();
+    final devices = plan?.devices.length ?? 0;
+    final scaleOk = (plan?.metersPerPixel ?? 0) > 0;
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const UnderlayScreen()),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.image_outlined, size: 18, color: scheme.primary),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text(
+                      'План по фото',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                hasImage
+                    ? 'Точек: $devices · '
+                        '${scaleOk ? 'масштаб задан' : 'масштаб не задан'}'
+                    : 'Загрузите фото или скан плана и расставьте символы',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.3,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              FilledButton.tonalIcon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const UnderlayScreen()),
+                ),
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: Text(hasImage ? 'Открыть' : 'Загрузить'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _roomCard(
     BuildContext context,
     WidgetRef ref,
@@ -272,6 +342,10 @@ class OverviewScreen extends ConsumerWidget {
                     spacing: 12,
                     runSpacing: 12,
                     children: [
+                      SizedBox(
+                        width: width,
+                        child: _underlayCard(context, ref, draft, scheme),
+                      ),
                       for (final r in rooms)
                         SizedBox(
                           width: width,
