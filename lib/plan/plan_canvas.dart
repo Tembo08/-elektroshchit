@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'plan_geometry.dart';
 import 'plan_models.dart';
+import 'plan_walls.dart';
 
 /// Какая грань комнаты тянется.
 enum PlanEdge { left, right, top, bottom, corner }
@@ -260,7 +261,8 @@ class _PlanPainter extends CustomPainter {
       _wires(canvas);
       _devices(canvas);
     }
-    _doors(canvas);
+    _walls(canvas);
+    _openings(canvas);
     if (showElectrical) _panel(canvas);
     if (showElectrical) {
       _roomLabels(canvas);
@@ -496,55 +498,88 @@ class _PlanPainter extends CustomPainter {
     label.paint(canvas, Offset(x1 + 4, y - label.height / 2));
   }
 
-  /// Двери из модели плана: проём в стене + дуга открывания.
-  void _doors(Canvas canvas) {
-    if (plan.doors.isEmpty) return;
+  /// Стены с толщиной: залитые прямоугольники, стыки перекрываются.
+  void _walls(Canvas canvas) {
+    if (plan.walls.isEmpty) return;
+    final fill = Paint()..color = PlanInk.ink;
 
-    final wipe = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 9.0;
+    for (final wall in plan.walls) {
+      final r = wall.rect;
+      canvas.drawRect(
+        Rect.fromLTWH(
+          origin.dx + r.left * scale,
+          origin.dy + r.top * scale,
+          r.width * scale,
+          r.height * scale,
+        ),
+        fill,
+      );
+    }
+  }
+
+  /// Проёмы: вырезаем участок стены, двери — с дугой, окна — двумя линиями.
+  void _openings(Canvas canvas) {
+    if (plan.openings.isEmpty) return;
+
+    final wall = PlanWalls.thickness * scale;
     final ink = Paint()
       ..color = PlanInk.ink
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
+      ..strokeWidth = 1.1;
 
-    for (final door in plan.doors) {
-      final w = door.width * scale;
-      final start = _px(door.x, door.y);
-      final end = door.horizontal
-          ? start + Offset(w, 0)
-          : start + Offset(0, w);
+    for (final opening in plan.openings) {
+      final a = _px(opening.a.dx, opening.a.dy);
+      final b = _px(opening.b.dx, opening.b.dy);
+      final wipeWidth = wall + 2;
 
-      canvas.drawLine(start, end, wipe);
-      if (door.entrance) {
-        // входная дверь: полотно + порог, чтобы её было видно на контуре
-        canvas.drawLine(
-          start,
-          end,
-          Paint()
-            ..color = PlanInk.ink
-            ..strokeWidth = 3.0,
-        );
-        final normal = door.horizontal ? const Offset(0, 1) : const Offset(1, 0);
-        canvas.drawLine(
-          start - normal * 3,
-          end - normal * 3,
-          Paint()
-            ..color = PlanInk.inkSoft
-            ..strokeWidth = 1.2,
-        );
-      }
-
-      // Дуга открывания: в комнату, а не в коридор.
-      final sweepStart = door.inwardDown ? math.pi : -math.pi / 2;
-      canvas.drawArc(
-        Rect.fromCircle(center: start, radius: w),
-        sweepStart,
-        math.pi / 2,
-        false,
-        ink,
+      // вырезаем проём
+      canvas.drawLine(
+        a,
+        b,
+        Paint()
+          ..color = Colors.white
+          ..strokeWidth = wipeWidth,
       );
+
+      switch (opening.type) {
+        case PlanOpeningType.door:
+        case PlanOpeningType.entry:
+          final radius = (b - a).distance;
+          if (opening.type == PlanOpeningType.entry) {
+            canvas.drawLine(
+              a,
+              b,
+              Paint()
+                ..color = PlanInk.ink
+                ..strokeWidth = 2.2,
+            );
+          }
+          canvas.drawArc(
+            Rect.fromCircle(center: a, radius: radius),
+            opening.horizontal ? math.pi / 2 : 0,
+            math.pi / 2,
+            false,
+            ink,
+          );
+        case PlanOpeningType.window:
+          // окно: две линии по краям проёма и линия остекления посередине
+          final normal =
+              opening.horizontal ? const Offset(0, 1) : const Offset(1, 0);
+          final paint = Paint()
+            ..color = PlanInk.ink
+            ..strokeWidth = 1.1;
+          canvas.drawLine(a, b, paint);
+          canvas.drawLine(
+            a - normal * wall / 2,
+            b - normal * wall / 2,
+            paint,
+          );
+          canvas.drawLine(
+            a + normal * wall / 2,
+            b + normal * wall / 2,
+            paint,
+          );
+      }
     }
   }
 

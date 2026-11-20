@@ -2,6 +2,8 @@ import 'dart:ui' show Rect, Offset;
 
 import 'package:electrical_core/electrical_core.dart' as core;
 
+import 'plan_walls.dart';
+
 /// Прямоугольник комнаты на плане, в метрах от левого верхнего угла.
 class PlanRect {
   final double left;
@@ -256,8 +258,14 @@ class FloorPlan {
   /// null — трассы вести напрямую (ручной режим).
   final double? corridorY;
 
-  /// Дверные проёмы.
+  /// Дверные проёмы (старый формат; стены и проёмы — отдельно).
   final List<PlanDoor> doors;
+
+  /// Стены с толщиной.
+  final List<PlanWall> walls;
+
+  /// Проёмы: двери и окна, вырезанные из стен.
+  final List<PlanOpening> openings;
 
   const FloorPlan({
     this.widthM = 9,
@@ -267,6 +275,8 @@ class FloorPlan {
     this.panel = const PlanPanel(x: 0.8, y: 0.8),
     this.corridorY,
     this.doors = const [],
+    this.walls = const [],
+    this.openings = const [],
   });
 
   bool get isEmpty => rooms.isEmpty && devices.isEmpty;
@@ -279,6 +289,8 @@ class FloorPlan {
     PlanPanel? panel,
     double? corridorY,
     List<PlanDoor>? doors,
+    List<PlanWall>? walls,
+    List<PlanOpening>? openings,
   }) =>
       FloorPlan(
         widthM: widthM ?? this.widthM,
@@ -288,6 +300,8 @@ class FloorPlan {
         panel: panel ?? this.panel,
         corridorY: corridorY ?? this.corridorY,
         doors: doors ?? this.doors,
+        walls: walls ?? this.walls,
+        openings: openings ?? this.openings,
       );
 
   /// Точки выбранного типа в комнате — для подсчёта количества.
@@ -304,6 +318,17 @@ class FloorPlan {
         'panel': panel.toJson(),
         'corridor': corridorY,
         'doors': [for (final d in doors) d.toJson()],
+        'walls': [
+          for (final w in walls)
+            {
+              'ax': w.a.dx,
+              'ay': w.a.dy,
+              'bx': w.b.dx,
+              'by': w.b.dy,
+              'thickness': w.thickness,
+            },
+        ],
+        'openings': [for (final o in openings) o.toJson()],
         'rooms': [for (final r in rooms) r.toJson()],
         'devices': [for (final d in devices) d.toJson()],
       };
@@ -322,6 +347,30 @@ class FloorPlan {
           ? [
               for (final d in json['doors'] as List)
                 if (d is Map) PlanDoor.fromJson(Map<String, dynamic>.from(d)),
+            ]
+          : const [],
+      walls: json['walls'] is List
+          ? [
+              for (final w in json['walls'] as List)
+                if (w is Map)
+                  PlanWall(
+                    Offset(
+                      (w['ax'] as num?)?.toDouble() ?? 0,
+                      (w['ay'] as num?)?.toDouble() ?? 0,
+                    ),
+                    Offset(
+                      (w['bx'] as num?)?.toDouble() ?? 0,
+                      (w['by'] as num?)?.toDouble() ?? 0,
+                    ),
+                    thickness: (w['thickness'] as num?)?.toDouble() ?? 0.16,
+                  ),
+            ]
+          : const [],
+      openings: json['openings'] is List
+          ? [
+              for (final o in json['openings'] as List)
+                if (o is Map)
+                  PlanOpening.fromJson(Map<String, dynamic>.from(o)),
             ]
           : const [],
       rooms: roomsRaw is List

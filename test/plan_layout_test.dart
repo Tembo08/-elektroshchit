@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:elektroshchit/core/project_draft.dart';
 import 'package:elektroshchit/plan/plan_layout.dart';
 import 'package:elektroshchit/plan/plan_models.dart';
+import 'package:elektroshchit/plan/plan_walls.dart';
 
 ProjectDraft draft(List<RoomDraft> rooms) => ProjectDraft(
       name: 'Квартира',
@@ -89,6 +90,35 @@ void main() {
       expect(bath.rect.top, greaterThan(living.rect.top),
           reason: 'санузел должен быть глубже жилой зоны');
       expect(bath.rect.top, greaterThan(kitchen.rect.top));
+    });
+
+    test('стены не дублируются и проёмы есть', () {
+      final plan = PlanLayout.build(draft(const [
+        RoomDraft(id: 'r0', name: 'Прихожая', type: core.RoomType.entrance, area: 5),
+        RoomDraft(id: 'r1', name: 'Кухня', type: core.RoomType.kitchen, area: 10),
+        RoomDraft(id: 'r2', name: 'Зал', type: core.RoomType.livingRoom, area: 20),
+        RoomDraft(id: 'r3', name: 'Санузел', type: core.RoomType.combinedBathroom, area: 4),
+      ]));
+
+      expect(plan.walls, isNotEmpty);
+      expect(plan.openings, isNotEmpty);
+
+      // Одна и та же стена не должна встречаться дважды.
+      final keys = plan.walls
+          .map((w) => '${w.a.dx},${w.a.dy}-${w.b.dx},${w.b.dy}')
+          .toList();
+      expect(keys.toSet().length, keys.length, reason: 'есть дубли стен');
+
+      // Входная дверь ровно одна.
+      expect(
+        plan.openings.where((o) => o.type == PlanOpeningType.entry).length,
+        1,
+      );
+      // Окна — только у жилых и кухни.
+      expect(
+        plan.openings.where((o) => o.type == PlanOpeningType.window).length,
+        greaterThanOrEqualTo(1),
+      );
     });
 
     test('комнаты не превращаются в щели', () {
