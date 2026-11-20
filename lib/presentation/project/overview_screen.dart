@@ -1,11 +1,9 @@
-import 'dart:io';
-
 import 'package:electrical_core/electrical_core.dart' as core;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/project_draft.dart';
-import '../plan/underlay_screen.dart';
+import '../plan/svg_import_screen.dart';
 import '../../plan/plan_geometry.dart';
 import '../../plan/plan_models.dart';
 import '../result/result_screen.dart';
@@ -185,25 +183,25 @@ class OverviewScreen extends ConsumerWidget {
     );
   }
 
-  /// Вход в план по подложке: фото плана + символы поверх.
-  Widget _underlayCard(
+  /// Импорт плана из Corel/Inkscape: слои SVG → стены, проёмы, символы.
+  Widget _svgCard(
     BuildContext context,
     WidgetRef ref,
     ProjectDraft draft,
     ColorScheme scheme,
   ) {
     final plan = draft.plan;
-    final hasImage =
-        plan?.underlayPath != null && File(plan!.underlayPath!).existsSync();
+    final walls = plan?.walls.length ?? 0;
     final devices = plan?.devices.length ?? 0;
-    final scaleOk = (plan?.metersPerPixel ?? 0) > 0;
+
+    void open() => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const SvgImportScreen()),
+        );
 
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const UnderlayScreen()),
-        ),
+        onTap: open,
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -212,11 +210,11 @@ class OverviewScreen extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  Icon(Icons.image_outlined, size: 18, color: scheme.primary),
+                  Icon(Icons.draw_outlined, size: 18, color: scheme.primary),
                   const SizedBox(width: 6),
                   const Expanded(
                     child: Text(
-                      'План по фото',
+                      'План из Corel / Inkscape',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -227,10 +225,9 @@ class OverviewScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                hasImage
-                    ? 'Точек: $devices · '
-                        '${scaleOk ? 'масштаб задан' : 'масштаб не задан'}'
-                    : 'Загрузите фото или скан плана и расставьте символы',
+                walls > 0
+                    ? 'Стен: $walls · точек: $devices'
+                    : 'Нарисуйте план в привычном редакторе и импортируйте SVG',
                 style: TextStyle(
                   fontSize: 12,
                   height: 1.3,
@@ -239,11 +236,9 @@ class OverviewScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               FilledButton.tonalIcon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const UnderlayScreen()),
-                ),
-                icon: const Icon(Icons.open_in_new, size: 16),
-                label: Text(hasImage ? 'Открыть' : 'Загрузить'),
+                onPressed: open,
+                icon: const Icon(Icons.upload_file_outlined, size: 16),
+                label: Text(walls > 0 ? 'Обновить план' : 'Импорт SVG'),
               ),
             ],
           ),
@@ -344,7 +339,7 @@ class OverviewScreen extends ConsumerWidget {
                     children: [
                       SizedBox(
                         width: width,
-                        child: _underlayCard(context, ref, draft, scheme),
+                        child: _svgCard(context, ref, draft, scheme),
                       ),
                       for (final r in rooms)
                         SizedBox(

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Шаблон плана для CorelDRAW / Inkscape.
+
+  Как пользоваться:
+  1. Откройте файл в CorelDRAW (Файл → Открыть) или Inkscape.
+  2. Не меняйте размер листа: 8000×6000 мм = квартира 8×6 метров.
+     Если квартира другая — поменяйте размер листа в тех же единицах (мм).
+  3. Рисуйте на готовых слоях:
+       walls   — стены линиями (можно прямоугольником)
+       doors   — проёмы дверей отрезком нужной длины
+       windows — окна отрезком
+       socket  — розетки (кружок или любой значок)
+       light   — светильники
+       switch  — выключатели
+       panel   — щит
+  4. Сохраните как SVG и импортируйте в приложение.
+
+  Важно: тип элемента определяется ИМЕНЕМ СЛОЯ, поэтому новые фигуры
+  кладите на существующие слои, а не создавайте свои.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+     width="8000mm" height="6000mm" viewBox="0 0 8000 6000"
+     version="1.1">
+
+  <g inkscape:label="walls" id="walls"
+     fill="none" stroke="#111827" stroke-width="120">
+    <!-- Внешние стены: прямоугольник по краю листа -->
+    <rect x="100" y="100" width="7800" height="5800"/>
+    <!-- Внутренняя перегородка: пример, удалите или подвиньте -->
+    <line x1="4000" y1="100" x2="4000" y2="3000"/>
+    <line x1="100" y1="3000" x2="4000" y2="3000"/>
+  </g>
+
+  <g inkscape:label="doors" id="doors"
+     stroke="#D32F2F" stroke-width="80" fill="none">
+    <!-- Проём: отрезок длиной с дверь (800 мм) -->
+    <line x1="1500" y1="3000" x2="2300" y2="3000"/>
+  </g>
+
+  <g inkscape:label="windows" id="windows"
+     stroke="#1565C0" stroke-width="80" fill="none">
+    <!-- Окно: отрезок длиной с окно (1400 мм) -->
+    <line x1="2000" y1="100" x2="3400" y2="100"/>
+  </g>
+
+  <g inkscape:label="socket" id="socket"
+     fill="none" stroke="#111827" stroke-width="40">
+    <!-- Розетка: кружок, центр станет точкой на плане -->
+    <circle cx="1000" cy="1200" r="120"/>
+  </g>
+
+  <g inkscape:label="light" id="light"
+     fill="none" stroke="#111827" stroke-width="40">
+    <circle cx="2000" cy="1600" r="120"/>
+  </g>
+
+  <g inkscape:label="switch" id="switch"
+     fill="none" stroke="#111827" stroke-width="40">
+    <rect x="1300" y="2750" width="200" height="200"/>
+  </g>
+
+  <g inkscape:label="panel" id="panel"
+     fill="none" stroke="#111827" stroke-width="60">
+    <rect x="300" y="3300" width="300" height="200"/>
+  </g>
+</svg>

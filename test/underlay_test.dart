@@ -1,4 +1,3 @@
-import 'package:electrical_core/electrical_core.dart' as core;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:elektroshchit/plan/plan_models.dart';

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+     width="8000mm" height="6000mm" viewBox="0 0 8000 6000">
+  <g inkscape:label="walls" id="walls">
+    <rect x="100" y="100" width="7800" height="5800"/>
+    <line x1="4000" y1="100" x2="4000" y2="3000"/>
+    <line x1="100" y1="3000" x2="4000" y2="3000"/>
+  </g>
+  <g inkscape:label="doors" id="doors">
+    <line x1="1500" y1="3000" x2="2400" y2="3000"/>
+    <line x1="4000" y1="1500" x2="4000" y2="2400"/>
+  </g>
+  <g inkscape:label="windows" id="windows">
+    <line x1="2000" y1="100" x2="3400" y2="100"/>
+  </g>
+  <g inkscape:label="socket" id="socket">
+    <circle cx="1000" cy="1200" r="120"/>
+    <circle cx="2600" cy="1200" r="120"/>
+    <circle cx="1200" cy="4200" r="120"/>
+  </g>
+  <g inkscape:label="light" id="light">
+    <circle cx="2000" cy="1600" r="120"/>
+  </g>
+  <g inkscape:label="switch" id="switch">
+    <rect x="1300" y="2900" width="200" height="200"/>
+  </g>
+  <g inkscape:label="panel" id="panel">
+    <rect x="300" y="3300" width="300" height="200"/>
+  </g>
+</svg>
