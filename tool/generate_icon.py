@@ -10,7 +10,12 @@ from __future__ import annotations
 
 import pathlib
 
+import sys
+
 from PIL import Image, ImageDraw, ImageFilter
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import icon_art  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ANDROID_RES = ROOT / "android/app/src/main/res"
@@ -33,37 +38,8 @@ def rounded(draw: ImageDraw.ImageDraw, box, radius, fill=None, outline=None,
 
 
 def draw_panel(canvas: Image.Image, scale: float = 1.0) -> None:
-    """Рисует сам щит. scale=1.0 — во весь холст (для мастер-иконки)."""
-    draw = ImageDraw.Draw(canvas)
-    s = lambda v: int(v * scale)  # noqa: E731
-
-    # корпус щита
-    left, top = s(232), s(180)
-    right, bottom = s(792), s(844)
-    rounded(draw, (left, top, right, bottom), s(58), fill=PANEL,
-            outline=NEON, width=s(26))
-
-    # DIN-рейка (две горизонтальные)
-    for y in (s(360), s(560)):
-        draw.line([(s(292), y), (s(732), y)], fill=NEON_DIM, width=s(10))
-
-    # автоматы: 3 сверху, 3 снизу
-    block_w, block_h = s(112), s(120)
-    gap = s(24)
-    start_x = s(300)
-    for row_y in (s(232), s(432)):
-        for i in range(3):
-            x = start_x + i * (block_w + gap)
-            rounded(draw, (x, row_y, x + block_w, row_y + block_h), s(14),
-                    fill=BLOCK)
-            # тумблер автомата
-            rounded(draw, (x + s(34), row_y + s(16), x + s(78),
-                           row_y + s(48)), s(8), fill=ACCENT)
-
-    # «шина» по центру внизу — намёк на ввод
-    draw.line([(s(512), s(640)), (s(512), s(700))], fill=NEON, width=s(14))
-    rounded(draw, (s(452), s(700), s(572), s(784)), s(20), outline=NEON,
-            width=s(14))
+    """Рисует знак иконки: рубильник (см. tool/icon_art.py)."""
+    icon_art.draw_knife(canvas, s=scale)
 
 
 def make_master() -> Image.Image:

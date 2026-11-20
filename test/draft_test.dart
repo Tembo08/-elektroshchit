@@ -225,7 +225,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Электрощит'), findsOneWidget);
-    expect(find.textContaining('Версия 1.0.2'), findsOneWidget);
+    expect(find.textContaining('Версия 1.0.3'), findsOneWidget);
     expect(find.textContaining('не собирает и не передаёт'), findsOneWidget);
     expect(find.textContaining('черновик'), findsOneWidget);
   });
