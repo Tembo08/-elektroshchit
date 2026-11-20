@@ -515,6 +515,41 @@ void main() {
     );
   });
 
+  testWidgets('10 монтажный план на ПК', (tester) async {
+    // Альбомный экран: план слева на 80 %, справа колонка данных.
+    tester.view.physicalSize = const Size(1366, 768);
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.padding = const FakeViewPadding(top: 30, bottom: 20);
+    addTearDown(tester.view.reset);
+    addTearDown(tester.view.resetPadding);
+    SharedPreferences.setMockInitialValues({});
+
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    container.read(projectDraftProvider.notifier).replaceDraft(demoDraft());
+    final result = core.CircuitCalculator(norms).calculate(
+      demoProject(),
+      socketLines: 2,
+      lightingLines: 2,
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: shotTheme(),
+          debugShowCheckedModeBanner: false,
+          home: PlanSheetScreen(result: result, projectName: 'Квартира'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('store_shots/10_sheet_wide.png'),
+    );
+  });
+
   testWidgets('07 проекты', (tester) async {
     phone(tester);
     addTearDown(tester.view.reset);

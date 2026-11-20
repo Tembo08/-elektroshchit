@@ -24,9 +24,84 @@ class PlanSheetScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
     final draft = ref.watch(projectDraftProvider);
-    final built = PlanAuto.build(draft: draft, result: result);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(projectName, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(
+            tooltip: 'Изменить вручную',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () {
+              final built = PlanAuto.build(draft: draft, result: result);
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => PlanEditorScreen(
+                    draft: draft.copyWith(plan: built.plan),
+                    onChanged: (next) => ref
+                        .read(projectDraftProvider.notifier)
+                        .setPlan(next),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // ПК: альбомный лист — план слева на 80 %, справа колонка данных.
+          // Телефон: план сверху во всю ширину, данные ниже.
+          final wide = constraints.maxWidth > 720;
+          final built = PlanAuto.build(draft: draft, result: result);
+          final sheet = _sheet(context, built, ref);
+
+          if (wide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Center(
+                    // Лист держим в собственных пропорциях: он занимает всю
+                    // высоту, а не висит мелким пятном в углу.
+                    child: AspectRatio(
+                      aspectRatio: built.plan.widthM / built.plan.heightM,
+                      child: sheet,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 340,
+                  child: _sidePanel(context, built),
+                ),
+              ],
+            );
+          }
+          return ListView(
+            padding: EdgeInsets.only(
+              bottom: 16 + MediaQuery.paddingOf(context).bottom,
+            ),
+            children: [
+              SizedBox(
+                height: MediaQuery.sizeOf(context).height * 0.62,
+                child: sheet,
+              ),
+              _sidePanel(context, built),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// Белый лист чертежа — во всю доступную площадь.
+  Widget _sheet(
+    BuildContext context,
+    ({FloorPlan plan, Map<String, String> groupLabels}) built,
+    WidgetRef ref,
+  ) {
     final plan = built.plan;
     final groupNumbers = <String, String>{};
     for (final entry in built.groupLabels.entries) {
@@ -38,6 +113,45 @@ class PlanSheetScreen extends ConsumerWidget {
       if (numbers.isNotEmpty) groupNumbers[entry.key] = numbers;
     }
 
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      child: Card(
+        margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
+        color: PlanInk.sheet,
+        child: InteractiveViewer(
+          maxScale: 4,
+          minScale: 1,
+          child: PlanCanvas(
+            plan: plan,
+            showGrid: false,
+            tool: PlanTool.rooms,
+            onTap: (_) {},
+            onRoomGrab: (_, _) {},
+            onRoomDragTo: (_, _) {},
+            onRoomDrop: (_) {},
+            onDeviceGrab: (_) {},
+            onDeviceDragTo: (_, _) {},
+            onPanelDragTo: (_) {},
+            onSelectRoom: (_) {},
+            onSelectDevice: (_) {},
+            groupLabels: groupNumbers,
+            panelNote: result.inputGroup == null
+                ? null
+                : 'ввод ${result.inputGroup!.breakerAmps} А',
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Колонка данных: легенда, группы, штамп.
+  Widget _sidePanel(
+    BuildContext context,
+    ({FloorPlan plan, Map<String, String> groupLabels}) built,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final plan = built.plan;
     final sockets =
         plan.devices.where((d) => d.type == PlanPointType.socket).length;
     final lights =
@@ -45,70 +159,16 @@ class PlanSheetScreen extends ConsumerWidget {
     final switches =
         plan.devices.where((d) => d.type == PlanPointType.switchPoint).length;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(projectName, overflow: TextOverflow.ellipsis),
-        actions: [
-          IconButton(
-            tooltip: 'Изменить вручную',
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => PlanEditorScreen(
-                    draft: draft.copyWith(plan: plan),
-                    onChanged: (next) => ref
-                        .read(projectDraftProvider.notifier)
-                        .setPlan(next),
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(
-          12,
-          8,
-          12,
-          16 + MediaQuery.paddingOf(context).bottom,
-        ),
-        children: [
-          // Полотно чертежа: белый лист с УГО.
-          SizedBox(
-            height: MediaQuery.sizeOf(context).height * 0.42,
-            child: Card(
-              margin: EdgeInsets.zero,
-              clipBehavior: Clip.antiAlias,
-              color: PlanInk.sheet,
-              child: PlanCanvas(
-                plan: plan,
-                tool: PlanTool.rooms,
-                onTap: (_) {},
-                onRoomGrab: (_, _) {},
-                onRoomDragTo: (_, _) {},
-                onRoomDrop: (_) {},
-                onDeviceGrab: (_) {},
-                onDeviceDragTo: (_, _) {},
-                onPanelDragTo: (_) {},
-                onSelectRoom: (_) {},
-                onSelectDevice: (_) {},
-                groupLabels: groupNumbers,
-                panelNote: result.inputGroup == null
-                    ? null
-                    : 'ввод ${result.inputGroup!.breakerAmps} А',
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          _legend(context, scheme),
-          const SizedBox(height: 10),
-          _groupsTable(context, scheme),
-          const SizedBox(height: 10),
-          _stamp(context, scheme, sockets, lights, switches),
-        ],
-      ),
+    return ListView(
+      shrinkWrap: true,
+      padding: const EdgeInsets.fromLTRB(0, 0, 12, 12),
+      children: [
+        _legend(context, scheme),
+        const SizedBox(height: 10),
+        _groupsTable(context, scheme),
+        const SizedBox(height: 10),
+        _stamp(context, scheme, sockets, lights, switches),
+      ],
     );
   }
 
@@ -224,11 +284,14 @@ class PlanSheetScreen extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: 3),
                 child: Text(
                   '${_groupNumber(group)} · ${group.breakerAmps} А · '
-                  '${_section(group.cableSectionMm2)} мм² · '
+                  '${_section(group.cableSectionMm2)} мм²\n'
                   '${group.name.replaceFirst(RegExp(r'^Гр\. \d+ — '), '')}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11, color: scheme.onSurface),
+                  maxLines: 2,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    height: 1.25,
+                    color: scheme.onSurface,
+                  ),
                 ),
               ),
           ],
@@ -290,9 +353,8 @@ class PlanSheetScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Высоты: розетки 0.3 м, выключатели 0.9 м от пола. '
-            'В санузле — только зона 3, УЗО 30 мА. Черновик, требует '
-            'проверки электриком.',
+            'Черновик. Требует проверки квалифицированным электриком, '
+            'не является проектной документацией.',
             style: TextStyle(
               fontSize: 10.5,
               height: 1.25,

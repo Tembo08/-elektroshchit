@@ -37,6 +37,9 @@ class PlanCanvas extends StatelessWidget {
   /// Подпись под щитом: «ввод 25 А» — чтобы на плане был виден ввод (Гр.1).
   final String? panelNote;
 
+  /// Сетка нужна в редакторе (привязка), но на монтажном листе это шум.
+  final bool showGrid;
+
   final void Function(Offset meters) onTap;
   final void Function(String roomId, PlanEdge? edge) onRoomGrab;
   final void Function(String roomId, Offset pointMeters) onRoomDragTo;
@@ -64,6 +67,7 @@ class PlanCanvas extends StatelessWidget {
     this.selectedDeviceId,
     this.groupLabels = const {},
     this.panelNote,
+    this.showGrid = true,
   });
 
   @override
@@ -168,6 +172,7 @@ class PlanCanvas extends StatelessWidget {
               fontFamily: fontFamily,
               groupLabels: groupLabels,
               panelNote: panelNote,
+              showGrid: showGrid,
               selectedRoomId: selectedRoomId,
               selectedDeviceId: selectedDeviceId,
             ),
@@ -209,6 +214,7 @@ class _PlanPainter extends CustomPainter {
   final String? fontFamily;
   final Map<String, String> groupLabels;
   final String? panelNote;
+  final bool showGrid;
 
   /// Отложенные подписи групп: рисуются поверх щита и символов.
   final List<(Offset, String)> _pendingLabels = [];
@@ -219,6 +225,7 @@ class _PlanPainter extends CustomPainter {
     required this.origin,
     required this.fontFamily,
     required this.groupLabels,
+    required this.showGrid,
     this.panelNote,
     this.selectedRoomId,
     this.selectedDeviceId,
@@ -230,12 +237,12 @@ class _PlanPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     _sheet(canvas);
-    _grid(canvas);
+    if (showGrid) _grid(canvas);
     _rooms(canvas);
     _wires(canvas);
     _devices(canvas);
-    _roomLabels(canvas);
     _panel(canvas);
+    _roomLabels(canvas);
     _groupLabels(canvas);
   }
 
@@ -295,7 +302,7 @@ class _PlanPainter extends CustomPainter {
         Paint()
           ..color = selected ? const Color(0xFF1D4ED8) : PlanInk.ink
           ..style = PaintingStyle.stroke
-          ..strokeWidth = selected ? 2.4 : 1.6,
+          ..strokeWidth = selected ? 2.8 : 2.2,
       );
 
     }
@@ -387,7 +394,7 @@ class _PlanPainter extends CustomPainter {
         final paint = Paint()
           ..color = colors[i]
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.3
+          ..strokeWidth = 0.9
           ..strokeJoin = StrokeJoin.round;
 
         final path = Path();
@@ -420,15 +427,23 @@ class _PlanPainter extends CustomPainter {
     }
   }
 
-  /// Подписи групп — поверх всего, со ступенчатым сдвигом по вертикали.
+  /// Подписи групп: тонкая выноска под 45° и номер справа.
+  ///
+  /// Номера выравниваем по одной вертикали со ступенькой — так 20+ номеров
+  /// не наезжают друг на друга (приём из ТЗ проектировщика).
   void _groupLabels(Canvas canvas) {
+    final leader = Paint()
+      ..color = PlanInk.ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
+
     for (var i = 0; i < _pendingLabels.length; i++) {
       final (anchor, text) = _pendingLabels[i];
       final painter = TextPainter(
         text: TextSpan(
           text: text,
           style: TextStyle(
-            color: PlanInk.phase,
+            color: PlanInk.ink,
             fontSize: 8,
             fontWeight: FontWeight.w700,
             fontFamily: fontFamily,
@@ -437,15 +452,19 @@ class _PlanPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
 
-      final step = (i % 3) * 0.16 * scale;
+      // Ступенька, чтобы соседние номера не сливались.
+      final step = (i % 4) * 7.0;
+      final end = anchor + Offset(10, -10 - step);
+      canvas.drawLine(anchor, end, leader);
+
       final box = Rect.fromLTWH(
-        anchor.dx - painter.width / 2,
-        anchor.dy - painter.height - 3 - step,
-        painter.width + 4,
-        painter.height + 1,
+        end.dx + 1,
+        end.dy - painter.height / 2,
+        painter.width + 3,
+        painter.height,
       );
       canvas.drawRect(box, Paint()..color = Colors.white);
-      painter.paint(canvas, box.topLeft + const Offset(2, 0));
+      painter.paint(canvas, box.topLeft + const Offset(1.5, 0));
     }
   }
 
@@ -455,7 +474,7 @@ class _PlanPainter extends CustomPainter {
     final ink = Paint()
       ..color = PlanInk.ink
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+      ..strokeWidth = 1.9;
 
     for (final device in plan.devices) {
       final p = _px(device.x, device.y);
@@ -474,7 +493,7 @@ class _PlanPainter extends CustomPainter {
 
       switch (device.type) {
         case PlanPointType.socket:
-          // полукруг + два усика (вилка)
+          // полукруг на стене + две насечки внутрь помещения
           canvas.drawArc(
             Rect.fromCircle(center: p, radius: r),
             math.pi,
@@ -482,12 +501,11 @@ class _PlanPainter extends CustomPainter {
             false,
             ink,
           );
+          canvas.drawLine(p + Offset(-r, 0), p + Offset(r, 0), ink);
           canvas.drawLine(
-              p + Offset(-r, 0), p + Offset(r, 0), ink);
+              p + Offset(-r * 0.45, 0), p + Offset(-r * 0.45, -r * 1.1), ink);
           canvas.drawLine(
-              p + Offset(-r * 0.45, 0), p + Offset(-r * 0.45, -r), ink);
-          canvas.drawLine(
-              p + Offset(r * 0.45, 0), p + Offset(r * 0.45, -r), ink);
+              p + Offset(r * 0.45, 0), p + Offset(r * 0.45, -r * 1.1), ink);
         case PlanPointType.light:
           canvas.drawCircle(p, r, ink);
           canvas.drawLine(
@@ -495,12 +513,10 @@ class _PlanPainter extends CustomPainter {
           canvas.drawLine(
               p + Offset(-r, r) * 0.72, p + Offset(r, -r) * 0.72, ink);
         case PlanPointType.switchPoint:
-          // выключатель — косой крест с чертой (как на схемах)
+          // отрезок с наклонной насечкой под 45° — как на образце
+          canvas.drawLine(p + Offset(-r, 0), p + Offset(r, 0), ink);
           canvas.drawLine(
-              p + Offset(-r, -r) * 0.8, p + Offset(r, r) * 0.8, ink);
-          canvas.drawLine(
-              p + Offset(r, -r) * 0.8, p + Offset(-r, r) * 0.8, ink);
-          canvas.drawLine(p + Offset(0, -r), p + Offset(0, -r * 2), ink);
+              p + Offset(r * 0.55, 0), p + Offset(-r * 0.1, -r * 1.5), ink);
         case PlanPointType.powerful:
           canvas.drawCircle(p, r, ink);
           canvas.drawCircle(p, r + 2.5, ink);
@@ -574,5 +590,6 @@ class _PlanPainter extends CustomPainter {
       old.selectedDeviceId != selectedDeviceId ||
       old.fontFamily != fontFamily ||
       old.groupLabels != groupLabels ||
-      old.panelNote != panelNote;
+      old.panelNote != panelNote ||
+      old.showGrid != showGrid;
 }
