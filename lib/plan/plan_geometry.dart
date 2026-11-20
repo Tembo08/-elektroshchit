@@ -41,6 +41,16 @@ class PlanGeometry {
 
   /// Углы ортогонального маршрута щит → точка (для отрисовки линии).
   static List<Offset> route(FloorPlan plan, PlanDevice device) {
+    // Если задан коридор — ведём по нему: вертикаль от щита до коридора,
+    // горизонталь по коридору, спуск к точке. Так трассы не перечёркивают
+    // комнаты и подписи.
+    final corridor = plan.corridorY;
+    if (corridor != null) {
+      final panel = Offset(plan.panel.x, plan.panel.y);
+      final band = Offset(plan.panel.x, corridor);
+      final along = Offset(device.x, corridor);
+      return [panel, band, along, Offset(device.x, device.y)];
+    }
     final panel = Offset(plan.panel.x, plan.panel.y);
     final target = Offset(device.x, device.y);
     final midX = plan.panel.x +

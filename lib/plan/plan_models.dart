@@ -136,18 +136,20 @@ class PlanPanel {
 }
 
 /// Тип точки на плане.
-enum PlanPointType { socket, light, powerful }
+enum PlanPointType { socket, light, switchPoint, powerful }
 
 extension PlanPointTypeInfo on PlanPointType {
   String get label => switch (this) {
         PlanPointType.socket => 'Розетка',
         PlanPointType.light => 'Свет',
+        PlanPointType.switchPoint => 'Выключатель',
         PlanPointType.powerful => 'Мощный',
       };
 
   core.ConsumerType get consumerType => switch (this) {
         PlanPointType.socket => core.ConsumerType.socket,
         PlanPointType.light => core.ConsumerType.lightPoint,
+        PlanPointType.switchPoint => core.ConsumerType.switchSingle,
         PlanPointType.powerful => core.ConsumerType.otherPowerful,
       };
 }
@@ -204,12 +206,17 @@ class FloorPlan {
   final List<PlanDevice> devices;
   final PlanPanel panel;
 
+  /// Горизонталь, по которой идут магистрали (y в метрах).
+  /// null — трассы вести напрямую (ручной режим).
+  final double? corridorY;
+
   const FloorPlan({
     this.widthM = 9,
     this.heightM = 9,
     this.rooms = const [],
     this.devices = const [],
     this.panel = const PlanPanel(x: 0.8, y: 0.8),
+    this.corridorY,
   });
 
   bool get isEmpty => rooms.isEmpty && devices.isEmpty;
@@ -220,6 +227,7 @@ class FloorPlan {
     List<PlanRoom>? rooms,
     List<PlanDevice>? devices,
     PlanPanel? panel,
+    double? corridorY,
   }) =>
       FloorPlan(
         widthM: widthM ?? this.widthM,
@@ -227,6 +235,7 @@ class FloorPlan {
         rooms: rooms ?? this.rooms,
         devices: devices ?? this.devices,
         panel: panel ?? this.panel,
+        corridorY: corridorY ?? this.corridorY,
       );
 
   /// Точки выбранного типа в комнате — для подсчёта количества.
@@ -241,6 +250,7 @@ class FloorPlan {
         'w': widthM,
         'h': heightM,
         'panel': panel.toJson(),
+        'corridor': corridorY,
         'rooms': [for (final r in rooms) r.toJson()],
         'devices': [for (final d in devices) d.toJson()],
       };
@@ -254,6 +264,7 @@ class FloorPlan {
       panel: PlanPanel.fromJson(
         Map<String, dynamic>.from(json['panel'] as Map? ?? const {}),
       ),
+      corridorY: (json['corridor'] as num?)?.toDouble(),
       rooms: roomsRaw is List
           ? [
               for (final r in roomsRaw)

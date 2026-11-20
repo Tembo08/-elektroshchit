@@ -31,6 +31,12 @@ class PlanCanvas extends StatelessWidget {
   final String? selectedRoomId;
   final String? selectedDeviceId;
 
+  /// Номера групп по комнатам: roomId → «1, 2» (для подписи у трассы).
+  final Map<String, String> groupLabels;
+
+  /// Подпись под щитом: «ввод 25 А» — чтобы на плане был виден ввод (Гр.1).
+  final String? panelNote;
+
   final void Function(Offset meters) onTap;
   final void Function(String roomId, PlanEdge? edge) onRoomGrab;
   final void Function(String roomId, Offset pointMeters) onRoomDragTo;
@@ -56,6 +62,8 @@ class PlanCanvas extends StatelessWidget {
     required this.onSelectDevice,
     this.selectedRoomId,
     this.selectedDeviceId,
+    this.groupLabels = const {},
+    this.panelNote,
   });
 
   @override
@@ -158,6 +166,8 @@ class PlanCanvas extends StatelessWidget {
               scale: scale,
               origin: offset,
               fontFamily: fontFamily,
+              groupLabels: groupLabels,
+              panelNote: panelNote,
               selectedRoomId: selectedRoomId,
               selectedDeviceId: selectedDeviceId,
             ),
@@ -197,12 +207,19 @@ class _PlanPainter extends CustomPainter {
   final String? selectedRoomId;
   final String? selectedDeviceId;
   final String? fontFamily;
+  final Map<String, String> groupLabels;
+  final String? panelNote;
+
+  /// Отложенные подписи групп: рисуются поверх щита и символов.
+  final List<(Offset, String)> _pendingLabels = [];
 
   _PlanPainter({
     required this.plan,
     required this.scale,
     required this.origin,
     required this.fontFamily,
+    required this.groupLabels,
+    this.panelNote,
     this.selectedRoomId,
     this.selectedDeviceId,
   });
@@ -217,7 +234,9 @@ class _PlanPainter extends CustomPainter {
     _rooms(canvas);
     _wires(canvas);
     _devices(canvas);
+    _roomLabels(canvas);
     _panel(canvas);
+    _groupLabels(canvas);
   }
 
   void _sheet(Canvas canvas) {
@@ -279,35 +298,89 @@ class _PlanPainter extends CustomPainter {
           ..strokeWidth = selected ? 2.4 : 1.6,
       );
 
-      // Подпись — в левом верхнем углу комнаты: в центре обычно стоит
-      // светильник, и подпись под ним не читается (проверено по скриншоту).
-      if (rect.width > 26 && rect.height > 18) {
-        final painter = TextPainter(
-          text: TextSpan(
-            text: room.name,
-            style: TextStyle(
-              color: PlanInk.inkSoft,
-              fontSize: 8.5,
-              height: 1.1,
-              letterSpacing: 0.2,
-              fontFamily: fontFamily,
-            ),
+    }
+  }
+
+  /// Названия комнат — отдельным проходом поверх символов и трасс.
+  void _roomLabels(Canvas canvas) {
+    for (final room in plan.rooms) {
+      final rect = Rect.fromLTWH(
+        origin.dx + room.rect.left * scale,
+        origin.dy + room.rect.top * scale,
+        room.rect.width * scale,
+        room.rect.height * scale,
+      );
+      if (rect.width < 30 || rect.height < 16) continue;
+
+      final painter = TextPainter(
+        text: TextSpan(
+          text: room.name,
+          style: TextStyle(
+            color: PlanInk.ink,
+            fontSize: 9.5,
+            height: 1.1,
+            letterSpacing: 0.2,
+            fontWeight: FontWeight.w700,
+            fontFamily: fontFamily,
           ),
-          textDirection: TextDirection.ltr,
-          maxLines: 1,
-          ellipsis: '…',
-        )..layout(maxWidth: math.max(20, rect.width - 8));
-        painter.paint(canvas, Offset(rect.left + 3, rect.top + 2));
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(maxWidth: math.max(20, rect.width - 10));
+
+      var plate = Rect.fromLTWH(
+        rect.left + 2,
+        rect.top + 2,
+        painter.width + 6,
+        painter.height + 3,
+      );
+
+      // Если на этом месте стоит значок щита — сдвигаем подпись ниже,
+      // иначе первая буква названия теряется под щитом.
+      final panelRect = Rect.fromCenter(
+        center: _px(plan.panel.x, plan.panel.y),
+        width: PlanPanel.widthM * scale,
+        height: PlanPanel.heightM * scale,
+      ).inflate(4);
+      if (plate.overlaps(panelRect)) {
+        plate = plate.translate(0, panelRect.bottom - plate.top + 3);
       }
+
+      canvas.drawRect(plate, Paint()..color = Colors.white);
+      painter.paint(canvas, plate.topLeft + const Offset(3, 1.5));
     }
   }
 
   /// Три проводника вдоль одной трассы: L, N, PE.
+  ///
+  /// Магистраль ведём по одной на комнату (до ближайшей к щиту точки):
+  /// тянуть отдельную линию к каждой розетке — «паутина», в которой
+  /// монтажник ничего не разберёт.
   void _wires(Canvas canvas) {
     const gap = 2.4;
     final colors = [PlanInk.phase, PlanInk.neutral, PlanInk.earth];
 
+    _pendingLabels.clear();
+    final byRoom = <String, List<PlanDevice>>{};
     for (final device in plan.devices) {
+      byRoom.putIfAbsent(device.roomId, () => []).add(device);
+    }
+
+    for (final entry in byRoom.entries) {
+      final roomDevices = entry.value;
+      var nearest = roomDevices.first;
+      var best = double.infinity;
+      for (final device in roomDevices) {
+        final length = (device.x - plan.panel.x).abs() +
+            (device.y - plan.panel.y).abs();
+        if (length < best) {
+          best = length;
+          nearest = device;
+        }
+      }
+
+      final device = nearest;
       final route = PlanGeometry.route(plan, device);
       for (var i = 0; i < colors.length; i++) {
         final shift = (i - 1) * gap;
@@ -334,6 +407,45 @@ class _PlanPainter extends CustomPainter {
         }
         canvas.drawPath(path, paint);
       }
+
+      // Номер группы — у магистрали (в коридоре). Саму подпись рисуем
+      // последним проходом: иначе её закрывает символ щита.
+      final label = groupLabels[entry.key];
+      if (label == null || label.isEmpty) continue;
+      final corridor = plan.corridorY;
+      final anchor = corridor != null
+          ? _px(device.x, corridor)
+          : _px(nearest.x, nearest.y);
+      _pendingLabels.add((anchor, 'Гр. $label'));
+    }
+  }
+
+  /// Подписи групп — поверх всего, со ступенчатым сдвигом по вертикали.
+  void _groupLabels(Canvas canvas) {
+    for (var i = 0; i < _pendingLabels.length; i++) {
+      final (anchor, text) = _pendingLabels[i];
+      final painter = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            color: PlanInk.phase,
+            fontSize: 8,
+            fontWeight: FontWeight.w700,
+            fontFamily: fontFamily,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      final step = (i % 3) * 0.16 * scale;
+      final box = Rect.fromLTWH(
+        anchor.dx - painter.width / 2,
+        anchor.dy - painter.height - 3 - step,
+        painter.width + 4,
+        painter.height + 1,
+      );
+      canvas.drawRect(box, Paint()..color = Colors.white);
+      painter.paint(canvas, box.topLeft + const Offset(2, 0));
     }
   }
 
@@ -350,6 +462,8 @@ class _PlanPainter extends CustomPainter {
       final selected = device.id == selectedDeviceId;
       final r = selected ? 7.0 : 5.5;
 
+      // Белый ореол: символы читаются поверх трасс.
+      canvas.drawCircle(p, r + 3.2, Paint()..color = Colors.white);
       if (selected) {
         canvas.drawCircle(
           p,
@@ -380,6 +494,13 @@ class _PlanPainter extends CustomPainter {
               p + Offset(-r, -r) * 0.72, p + Offset(r, r) * 0.72, ink);
           canvas.drawLine(
               p + Offset(-r, r) * 0.72, p + Offset(r, -r) * 0.72, ink);
+        case PlanPointType.switchPoint:
+          // выключатель — косой крест с чертой (как на схемах)
+          canvas.drawLine(
+              p + Offset(-r, -r) * 0.8, p + Offset(r, r) * 0.8, ink);
+          canvas.drawLine(
+              p + Offset(r, -r) * 0.8, p + Offset(-r, r) * 0.8, ink);
+          canvas.drawLine(p + Offset(0, -r), p + Offset(0, -r * 2), ink);
         case PlanPointType.powerful:
           canvas.drawCircle(p, r, ink);
           canvas.drawCircle(p, r + 2.5, ink);
@@ -424,6 +545,24 @@ class _PlanPainter extends CustomPainter {
       canvas,
       Offset(rect.center.dx - label.width / 2, rect.bottom + 2),
     );
+
+    if (panelNote != null && panelNote!.isNotEmpty) {
+      final note = TextPainter(
+        text: TextSpan(
+          text: panelNote,
+          style: TextStyle(
+            color: PlanInk.inkSoft,
+            fontSize: 7,
+            fontFamily: fontFamily,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      note.paint(
+        canvas,
+        Offset(rect.center.dx - note.width / 2, rect.bottom + 2 + label.height),
+      );
+    }
   }
 
   @override
@@ -433,5 +572,7 @@ class _PlanPainter extends CustomPainter {
       old.origin != origin ||
       old.selectedRoomId != selectedRoomId ||
       old.selectedDeviceId != selectedDeviceId ||
-      old.fontFamily != fontFamily;
+      old.fontFamily != fontFamily ||
+      old.groupLabels != groupLabels ||
+      old.panelNote != panelNote;
 }

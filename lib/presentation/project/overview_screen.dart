@@ -81,7 +81,7 @@ class OverviewScreen extends ConsumerWidget {
       if (socketCount > 0) {
         consumers.add(
           core.Consumer(
-            id: 'c_${cid++}',
+            id: '${d.id}#c${cid++}',
             type: core.ConsumerType.socket,
             name: 'Розетки',
             quantity: socketCount,
@@ -92,7 +92,7 @@ class OverviewScreen extends ConsumerWidget {
       if (d.mirrorSockets > 0) {
         consumers.add(
           core.Consumer(
-            id: 'c_${cid++}',
+            id: '${d.id}#c${cid++}',
             type: core.ConsumerType.socket,
             name: 'Розетка у зеркала',
             quantity: d.mirrorSockets,
@@ -105,7 +105,7 @@ class OverviewScreen extends ConsumerWidget {
         for (var i = 0; i < spec.quantity; i++) {
           consumers.add(
             core.Consumer(
-              id: 'c_${cid++}',
+              id: '${d.id}#c${cid++}',
               type: type,
               name: _dedicatedName(type),
               quantity: 1,
@@ -122,7 +122,7 @@ class OverviewScreen extends ConsumerWidget {
       if (lightCount > 0) {
         consumers.add(
           core.Consumer(
-            id: 'c_${cid++}',
+            id: '${d.id}#c${cid++}',
             type: core.ConsumerType.lightPoint,
             name: 'Свет',
             quantity: lightCount,
@@ -133,7 +133,7 @@ class OverviewScreen extends ConsumerWidget {
       if (d.switches > 0) {
         consumers.add(
           core.Consumer(
-            id: 'c_${cid++}',
+            id: '${d.id}#c${cid++}',
             type: core.ConsumerType.switchSingle,
             name: 'Выключатели',
             quantity: d.switches,

@@ -15,6 +15,7 @@ import 'package:elektroshchit/presentation/project/overview_screen.dart';
 import 'package:elektroshchit/presentation/project/room_wizard_screen.dart';
 import 'package:elektroshchit/presentation/plan/plan_editor_screen.dart';
 import 'package:elektroshchit/plan/plan_models.dart';
+import 'package:elektroshchit/presentation/plan/plan_sheet_screen.dart';
 import 'package:elektroshchit/plan/plan_seed.dart';
 import 'package:elektroshchit/presentation/project/rooms_flow_screen.dart';
 import 'package:elektroshchit/presentation/projects/projects_screen.dart';
@@ -94,7 +95,7 @@ core.Project demoProject() => core.Project(
               quantity: 6,
             ),
             core.Consumer(
-              id: 'c2',
+              id: 'r1#c2',
               type: core.ConsumerType.electricStove,
               name: 'Варочная панель',
               quantity: 1,
@@ -112,13 +113,13 @@ core.Project demoProject() => core.Project(
           cableLengthM: 12,
           consumers: const [
             core.Consumer(
-              id: 'c3',
+              id: 'r2#c3',
               type: core.ConsumerType.socket,
               name: 'Розетки',
               quantity: 2,
             ),
             core.Consumer(
-              id: 'c4',
+              id: 'r2#c4',
               type: core.ConsumerType.washingMachine,
               name: 'Стиральная машина',
               quantity: 1,
@@ -136,13 +137,13 @@ core.Project demoProject() => core.Project(
           cableLengthM: 25,
           consumers: const [
             core.Consumer(
-              id: 'c5',
+              id: 'r3#c5',
               type: core.ConsumerType.socket,
               name: 'Розетки',
               quantity: 8,
             ),
             core.Consumer(
-              id: 'c6',
+              id: 'r3#c6',
               type: core.ConsumerType.lightPoint,
               name: 'Свет',
               quantity: 3,
@@ -478,6 +479,42 @@ void main() {
     );
   });
 
+  testWidgets('09 монтажный план', (tester) async {
+    phone(tester);
+    addTearDown(tester.view.reset);
+    addTearDown(tester.view.resetPadding);
+    SharedPreferences.setMockInitialValues({});
+
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final draft = demoDraft();
+    container.read(projectDraftProvider.notifier).replaceDraft(draft);
+    final result = core.CircuitCalculator(norms).calculate(
+      demoProject(),
+      socketLines: 2,
+      lightingLines: 2,
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: shotTheme(),
+          debugShowCheckedModeBanner: false,
+          home: PlanSheetScreen(
+            result: result,
+            projectName: 'Квартира',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('store_shots/09_sheet.png'),
+    );
+  });
+
   testWidgets('07 проекты', (tester) async {
     phone(tester);
     addTearDown(tester.view.reset);
@@ -526,3 +563,57 @@ void main() {
     );
   });
 }
+
+
+/// Черновик для скриншота монтажного плана: те же комнаты, что в расчёте.
+ProjectDraft demoDraft() => const ProjectDraft(
+      name: 'Квартира',
+      objectType: core.ObjectType.apartment,
+      phaseSystem: core.PhaseSystem.three,
+      allowedPowerKw: 15,
+      totalArea: 62,
+      rooms: [
+        RoomDraft(
+          id: 'r0',
+          name: 'Прихожая',
+          type: core.RoomType.entrance,
+          area: 5,
+          socketsNormal: 2,
+          lights: 1,
+          switches: 1,
+        ),
+        RoomDraft(
+          id: 'r1',
+          name: 'Кухня',
+          type: core.RoomType.kitchen,
+          area: 12,
+          socketsNormal: 6,
+          lights: 2,
+          switches: 1,
+          dedicated: {
+            core.ConsumerType.electricStove: ApplianceSpec(
+              quantity: 1,
+              powerKw: 7,
+            ),
+          },
+        ),
+        RoomDraft(
+          id: 'r3',
+          name: 'Зал',
+          type: core.RoomType.livingRoom,
+          area: 22,
+          socketsNormal: 8,
+          lights: 2,
+          switches: 2,
+        ),
+        RoomDraft(
+          id: 'r2',
+          name: 'Санузел',
+          type: core.RoomType.combinedBathroom,
+          area: 4,
+          socketsNormal: 2,
+          lights: 1,
+          switches: 1,
+        ),
+      ],
+    );

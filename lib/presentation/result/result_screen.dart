@@ -16,7 +16,7 @@ import '../../export/pdf_exporter.dart';
 import '../../core/theme.dart';
 import '../../plan/plan_models.dart';
 import '../../plan/plan_seed.dart';
-import '../plan/plan_editor_screen.dart';
+import '../plan/plan_sheet_screen.dart';
 import '../../core/tips.dart';
 import '../widgets/tip_card.dart';
 
@@ -101,10 +101,6 @@ class ResultScreen extends StatelessWidget {
             const SizedBox(height: 10),
           ],
           _summaryCard(context, panel, input),
-          const SizedBox(height: 12),
-          Consumer(
-            builder: (context, ref, _) => _planCard(context, ref),
-          ),
           if (result.phaseBalance != null) ...[
             const SizedBox(height: 12),
             _phaseCard(context, result.phaseBalance!),
@@ -152,6 +148,12 @@ class ResultScreen extends StatelessWidget {
                 ],
               ],
             ),
+          ),
+          const SizedBox(height: 20),
+          Text('План помещения', style: titleStyle),
+          const SizedBox(height: 8),
+          Consumer(
+            builder: (context, ref, _) => _planCard(context, ref),
           ),
           const SizedBox(height: 16),
           Card(
@@ -362,9 +364,15 @@ class ResultScreen extends StatelessWidget {
               children: [
                 Icon(Icons.architecture, size: 20, color: scheme.primary),
                 const SizedBox(width: 8),
-                const Text(
-                  'План помещения',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                Expanded(
+                  child: Text(
+                    'Как это выглядит в квартире',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -387,11 +395,9 @@ class ResultScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => PlanEditorScreen(
-                        draft: draft,
-                        onChanged: (next) => ref
-                            .read(projectDraftProvider.notifier)
-                            .setPlan(next),
+                      builder: (_) => PlanSheetScreen(
+                        result: result,
+                        projectName: projectName,
                       ),
                     ),
                   );
