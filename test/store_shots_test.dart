@@ -179,6 +179,12 @@ void main() {
         ),
       ),
     );
+    // Дождаться загрузки фоновой картинки щита, иначе кадр снимается
+    // до отрисовки изображения.
+    await tester.runAsync(() async {
+      final image = const AssetImage('assets/branding/hero-panel.jpg');
+      await precacheImage(image, tester.element(find.byType(HomeScreen)));
+    });
     await snap(tester, '01_home');
   });
 

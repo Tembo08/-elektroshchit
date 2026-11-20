@@ -7,7 +7,6 @@ import '../../core/providers.dart';
 import '../project/object_type_screen.dart';
 import '../projects/projects_screen.dart';
 import '../about/about_screen.dart';
-import 'panel_styles.dart';
 import '../tips/tips_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -77,10 +76,6 @@ class HomeScreen extends ConsumerWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Щиток с картинки-референса: стоит там, где
-                          // начинается новый проект.
-                          const _StartPanelImage(),
-                          const SizedBox(height: 10),
                           FilledButton(
                             onPressed: () => _startProject(context, ref, norms),
                             child: const Padding(
@@ -178,10 +173,10 @@ class _NeonHero extends StatelessWidget {
               ),
             ],
           ),
-          child: const PanelVariant(
-            style: PanelStyle.neon,
-            width: 246,
-            animate: true,
+          child: Image.asset(
+            'assets/branding/hero-panel.jpg',
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.medium,
           ),
         ),
         const SizedBox(height: 26),
@@ -214,21 +209,3 @@ class _NeonHero extends StatelessWidget {
 }
 
 /// Щиток над кнопкой «Начать проект»: строгая графика, как в референсе.
-class _StartPanelImage extends StatelessWidget {
-  const _StartPanelImage();
-
-  @override
-  Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 190),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Image.asset(
-          'assets/branding/hero-panel.png',
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.medium,
-        ),
-      ),
-    );
-  }
-}
