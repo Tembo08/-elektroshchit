@@ -132,16 +132,20 @@ class ProjectDraft {
 
   bool get hasProject => objectType != null;
 
+  /// Неизменный sentinel: чтобы отличить «поле не трогали» от
+  /// «явно очистить в null» (например, вернуться к ручным длинам).
+  static const _unset = Object();
+
   ProjectDraft copyWith({
     String? name,
-    core.ObjectType? objectType,
+    Object? objectType = _unset,
     double? totalArea,
     double? ceilingHeight,
     core.GroundingSystem? groundingSystem,
-    FloorPlan? plan,
+    Object? plan = _unset,
     core.PhaseSystem? phaseSystem,
     double? allowedPowerKw,
-    int? inputBreakerAmps,
+    Object? inputBreakerAmps = _unset,
     int? lightingLines,
     int? socketLines,
     List<RoomDraft>? rooms,
@@ -151,16 +155,26 @@ class ProjectDraft {
       totalArea: totalArea ?? this.totalArea,
       ceilingHeight: ceilingHeight ?? this.ceilingHeight,
       groundingSystem: groundingSystem ?? this.groundingSystem,
-      plan: plan ?? this.plan,
-      objectType: objectType ?? this.objectType,
+      plan: plan == _unset ? this.plan : plan as FloorPlan?,
+      objectType: objectType == _unset
+          ? this.objectType
+          : objectType as core.ObjectType?,
       phaseSystem: phaseSystem ?? this.phaseSystem,
       allowedPowerKw: allowedPowerKw ?? this.allowedPowerKw,
-      inputBreakerAmps: inputBreakerAmps ?? this.inputBreakerAmps,
+      inputBreakerAmps: inputBreakerAmps == _unset
+          ? this.inputBreakerAmps
+          : inputBreakerAmps as int?,
       lightingLines: lightingLines ?? this.lightingLines,
       socketLines: socketLines ?? this.socketLines,
       rooms: rooms ?? this.rooms,
     );
   }
+
+  /// Явно сбрасывает план в null — «вернуться к ручным длинам».
+  ProjectDraft withoutPlan() => copyWith(plan: null);
+
+  /// Явно сбрасывает вводной автомат в null — «авто/по расчёту».
+  ProjectDraft withoutInputBreaker() => copyWith(inputBreakerAmps: null);
 }
 
 class ProjectDraftNotifier extends Notifier<ProjectDraft> {
@@ -172,6 +186,9 @@ class ProjectDraftNotifier extends Notifier<ProjectDraft> {
   }
 
   void addRoom(RoomDraft room) {
+    // id комнаты уникален: если такой уже есть — не плодим дубль,
+    // иначе updateRoom/removeRoom обновят/удалят несколько комнат сразу.
+    if (state.rooms.any((r) => r.id == room.id)) return;
     state = state.copyWith(rooms: [...state.rooms, room]);
   }
 
@@ -209,7 +226,8 @@ class ProjectDraftNotifier extends Notifier<ProjectDraft> {
   }
 
   /// План помещения (или null, чтобы вернуться к ручным длинам).
-  void setPlan(FloorPlan? plan) => state = state.copyWith(plan: plan);
+  void setPlan(FloorPlan? plan) =>
+      state = plan == null ? state.withoutPlan() : state.copyWith(plan: plan);
 
   void setInput({required double allowedPowerKw, int? breakerAmps}) {
     state = state.copyWith(
