@@ -76,6 +76,7 @@ flutter:
     - assets/norms/ru_2026/room_defaults.yaml
     - assets/norms/ru_2026/stop_scenarios.yaml
     - assets/plan_template.svg
+    - assets/branding/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -77,6 +77,10 @@ class HomeScreen extends ConsumerWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          // Щиток с картинки-референса: стоит там, где
+                          // начинается новый проект.
+                          const _StartPanelImage(),
+                          const SizedBox(height: 10),
                           FilledButton(
                             onPressed: () => _startProject(context, ref, norms),
                             child: const Padding(
@@ -205,6 +209,26 @@ class _NeonHero extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Щиток над кнопкой «Начать проект»: строгая графика, как в референсе.
+class _StartPanelImage extends StatelessWidget {
+  const _StartPanelImage();
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 190),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Image.asset(
+          'assets/branding/hero-panel.png',
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.medium,
+        ),
+      ),
     );
   }
 }
