@@ -258,7 +258,8 @@ class _PlanPainter extends CustomPainter {
     if (showGrid) _grid(canvas);
     _rooms(canvas);
     if (showElectrical) {
-      _wires(canvas);
+      // Трассы (провода) пока не рисуем: сначала расставляем элементы,
+      // линии добавим отдельным этапом.
       _devices(canvas);
     }
     _walls(canvas);
@@ -394,12 +395,12 @@ class _PlanPainter extends CustomPainter {
     }
   }
 
-  /// Одна цветная линия на группу, только по стенам и вертикалям.
-  ///
-  /// Раньше соседние точки соединялись напрямую — получались диагонали
-  /// через комнату. Теперь: магистраль по коридору → вдоль стены → отвод
-  /// вверх к светильнику.
+  /// Трассы групп. Пока не рисуются (элементы ставим без проводов),
+  /// метод оставлен на следующий этап.
+  // ignore: unused_element
   void _wires(Canvas canvas) {
+    // Трассы групп. Пока не рисуются — элементы ставим без проводов;
+    // вернём линии на следующем этапе.
     _pendingLabels.clear();
     final byRoom = <String, List<PlanDevice>>{};
     for (final device in plan.devices) {
@@ -545,6 +546,13 @@ class _PlanPainter extends CustomPainter {
             ..color = PlanInk.ink
             ..strokeWidth = 1.2;
 
+          // наличники: короткие поперечные штрихи на краях проёма
+          final normal =
+              opening.horizontal ? const Offset(0, 1) : const Offset(1, 0);
+          final jamb = normal * (wall / 2 + 1.5);
+          canvas.drawLine(a - jamb, a + jamb, paint);
+          canvas.drawLine(b - jamb, b + jamb, paint);
+
           // полотно двери — перпендикулярно стене, от петли
           final leaf = opening.horizontal
               ? Offset(0, -radius)
@@ -655,20 +663,27 @@ class _PlanPainter extends CustomPainter {
 
       switch (device.type) {
         case PlanPointType.socket:
-          canvas.drawCircle(p, r, ink);
-          // две точки-контакта
-          canvas.drawCircle(p + Offset(-r * 0.35, 0), r * 0.13,
-              Paint()..color = PlanInk.ink);
-          canvas.drawCircle(p + Offset(r * 0.35, 0), r * 0.13,
-              Paint()..color = PlanInk.ink);
-          // дуга «личиком» вверх
+          // ГОСТ 21.614: полукруг куполом вверх, два коротких контакта
+          // вверх и длинная осевая черта вниз — защитный контакт.
           canvas.drawArc(
-            Rect.fromCircle(center: p + Offset(0, r * 0.08), radius: r * 0.62),
-            3.5,
-            2.3,
+            Rect.fromCircle(center: p, radius: r),
+            0,
+            math.pi,
             false,
             ink,
           );
+          canvas.drawLine(p + Offset(-r, 0), p + Offset(r, 0), ink);
+          canvas.drawLine(
+            p + Offset(-r * 0.42, 0),
+            p + Offset(-r * 0.42, -r * 0.85),
+            ink,
+          );
+          canvas.drawLine(
+            p + Offset(r * 0.42, 0),
+            p + Offset(r * 0.42, -r * 0.85),
+            ink,
+          );
+          canvas.drawLine(p, p + Offset(0, r * 1.1), ink);
         case PlanPointType.light:
           canvas.drawCircle(p, r, ink);
           canvas.drawLine(
