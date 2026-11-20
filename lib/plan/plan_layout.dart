@@ -199,8 +199,15 @@ class PlanLayout {
     }
 
     // ── стены и проёмы ──────────────────────────────────────────
+    final planWidth =
+        planRooms.map((r) => r.rect.right).reduce((a, b) => a > b ? a : b);
+    final planHeight =
+        planRooms.map((r) => r.rect.bottom).reduce((a, b) => a > b ? a : b);
+
     final wallsBuilt = PlanWalls.build(
       rooms: planRooms,
+      planWidth: planWidth,
+      planHeight: planHeight,
       hostOf: (room) {
         // окна — только жилым комнатам и кухне
         final isLiving = _living.contains(room.type) ||
@@ -278,6 +285,9 @@ class PlanLayout {
     if (rooms.isEmpty) return const [];
 
     final arranged = [...rooms];
+    // Порядок — по убыванию площади: squarify даёт лучшие пропорции, когда
+    // большие комнаты идут первыми. Сортировка по типам ломала геометрию
+    // (кухня превращалась в полосу 6×1.6).
     arranged.sort((a, b) => areaOf(b).compareTo(areaOf(a)));
 
     final tree = TreeMap(

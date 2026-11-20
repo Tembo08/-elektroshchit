@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:elektroshchit/core/project_draft.dart';
 import 'package:elektroshchit/plan/plan_layout.dart';
-import 'package:elektroshchit/plan/plan_models.dart';
 import 'package:elektroshchit/plan/plan_walls.dart';
 
 ProjectDraft draft(List<RoomDraft> rooms) => ProjectDraft(

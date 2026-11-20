@@ -522,10 +522,6 @@ class _PlanPainter extends CustomPainter {
     if (plan.openings.isEmpty) return;
 
     final wall = PlanWalls.thickness * scale;
-    final ink = Paint()
-      ..color = PlanInk.ink
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1;
 
     for (final opening in plan.openings) {
       final a = _px(opening.a.dx, opening.a.dy);
@@ -545,22 +541,35 @@ class _PlanPainter extends CustomPainter {
         case PlanOpeningType.door:
         case PlanOpeningType.entry:
           final radius = (b - a).distance;
+          final paint = Paint()
+            ..color = PlanInk.ink
+            ..strokeWidth = 1.2;
+
+          // полотно двери — перпендикулярно стене, от петли
+          final leaf = opening.horizontal
+              ? Offset(0, -radius)
+              : Offset(radius, 0);
+          canvas.drawLine(a, a + leaf, paint);
+
+          // дуга открывания
+          final start = opening.horizontal ? -math.pi / 2 : 0.0;
+          canvas.drawArc(
+            Rect.fromCircle(center: a, radius: radius),
+            start,
+            math.pi / 2,
+            false,
+            paint,
+          );
+
           if (opening.type == PlanOpeningType.entry) {
             canvas.drawLine(
               a,
               b,
               Paint()
                 ..color = PlanInk.ink
-                ..strokeWidth = 2.2,
+                ..strokeWidth = 2.4,
             );
           }
-          canvas.drawArc(
-            Rect.fromCircle(center: a, radius: radius),
-            opening.horizontal ? math.pi / 2 : 0,
-            math.pi / 2,
-            false,
-            ink,
-          );
         case PlanOpeningType.window:
           // окно: две линии по краям проёма и линия остекления посередине
           final normal =

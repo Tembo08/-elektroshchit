@@ -90,30 +90,49 @@ class PlanWalls {
   static ({List<PlanWall> walls, List<PlanOpening> openings}) build({
     required List<PlanRoom> rooms,
     required String? Function(PlanRoom room) hostOf,
+    required double planWidth,
+    required double planHeight,
   }) {
     final walls = _mergeWalls(rooms);
     final openings = <PlanOpening>[];
 
-    // Окна — на внешних стенах жилых комнат и кухни.
+    // Окна — только на НАРУЖНЫХ стенах жилых комнат и кухни.
+    // Раньше окно ставилось на верхнюю стену, даже если она внутренняя:
+    // получалось окно между залом и кухней.
+    const eps = 0.02;
     for (final room in rooms) {
       if (hostOf(room) == null) continue;
-      final rect = room.rect;
-      final width = rect.width >= rect.height ? rect.width : rect.height;
-      if (width < windowWidth + 0.3) continue;
+      final r = room.rect;
 
-      final horizontal = rect.width >= rect.height;
-      if (horizontal) {
-        final x = rect.center.dx - windowWidth / 2;
+      // Порядок: верх, низ, лево, право — что первое окажется наружным.
+      final candidates = <({bool horizontal, double x, double y, double len})>[
+        if (r.top.abs() < eps)
+          (horizontal: true, x: r.left, y: r.top, len: r.width),
+        if ((r.bottom - planHeight).abs() < 0.2)
+          (horizontal: true, x: r.left, y: r.bottom, len: r.width),
+        if (r.left.abs() < eps)
+          (horizontal: false, x: r.left, y: r.top, len: r.height),
+        if ((r.right - planWidth).abs() < 0.2)
+          (horizontal: false, x: r.right, y: r.top, len: r.height),
+      ];
+
+      final host = candidates
+          .where((c) => c.len >= windowWidth + 0.3)
+          .firstOrNull;
+      if (host == null) continue;
+
+      if (host.horizontal) {
+        final x = host.x + (host.len - windowWidth) / 2;
         openings.add(PlanOpening(
-          a: Offset(x, rect.top),
-          b: Offset(x + windowWidth, rect.top),
+          a: Offset(x, host.y),
+          b: Offset(x + windowWidth, host.y),
           type: PlanOpeningType.window,
         ));
       } else {
-        final y = rect.center.dy - windowWidth / 2;
+        final y = host.y + (host.len - windowWidth) / 2;
         openings.add(PlanOpening(
-          a: Offset(rect.left, y),
-          b: Offset(rect.left, y + windowWidth),
+          a: Offset(host.x, y),
+          b: Offset(host.x, y + windowWidth),
           type: PlanOpeningType.window,
         ));
       }
