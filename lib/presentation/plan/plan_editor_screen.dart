@@ -5,6 +5,7 @@ import '../../core/project_draft.dart';
 import '../../plan/plan_canvas.dart';
 import '../../plan/plan_geometry.dart';
 import '../../plan/plan_models.dart';
+import '../../plan/plan_seed.dart';
 
 /// Редактор плана помещения: комнаты, точки, щит.
 ///
@@ -31,6 +32,9 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
   String? _selectedRoomId;
   String? _selectedDeviceId;
 
+  /// Грань комнаты, которую сейчас тянет палец (null — движем целиком).
+  PlanEdge? _grabbedEdge;
+
   /// Сколько розеток ставить за один тап.
   int _batch = 1;
 
@@ -39,7 +43,8 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
   @override
   void initState() {
     super.initState();
-    _plan = const FloorPlan(widthM: 8, heightM: 6);
+    // План собираем из комнат проекта: рисовать квартиру с нуля не нужно.
+    _plan = widget.draft.plan ?? PlanSeed.fromDraft(widget.draft);
   }
 
   int _counter = 0;
@@ -95,6 +100,109 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
     );
     _counter += _batch;
     _update(_plan.copyWith(devices: [..._plan.devices, ...batch]));
+  }
+
+  /// Тянем комнату целиком или за конкретную грань.
+  void _dragRoom(String id, Offset meters, PlanEdge? edge) {
+    final room = _plan.rooms.firstWhere((r) => r.id == id);
+    final rect = room.rect;
+    PlanRect next;
+
+    switch (edge) {
+      case PlanEdge.left:
+        final left = PlanGeometry.snap(meters.dx).clamp(
+          0.0,
+          rect.right - PlanGeometry.minRoomSize,
+        );
+        next = PlanRect(
+          left: left,
+          top: rect.top,
+          width: rect.right - left,
+          height: rect.height,
+        );
+      case PlanEdge.right:
+        final right = PlanGeometry.snap(meters.dx)
+            .clamp(rect.left + PlanGeometry.minRoomSize, _plan.widthM);
+        next = rect.resizedTo(right, rect.bottom);
+      case PlanEdge.top:
+        final top = PlanGeometry.snap(meters.dy).clamp(
+          0.0,
+          rect.bottom - PlanGeometry.minRoomSize,
+        );
+        next = PlanRect(
+          left: rect.left,
+          top: top,
+          width: rect.width,
+          height: rect.bottom - top,
+        );
+      case PlanEdge.bottom:
+        final bottom = PlanGeometry.snap(meters.dy)
+            .clamp(rect.top + PlanGeometry.minRoomSize, _plan.heightM);
+        next = PlanRect(
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: bottom - rect.top,
+        );
+      case PlanEdge.corner:
+        next = rect.resizedTo(
+          PlanGeometry.snap(meters.dx)
+              .clamp(rect.left + PlanGeometry.minRoomSize, _plan.widthM),
+          PlanGeometry.snap(meters.dy)
+              .clamp(rect.top + PlanGeometry.minRoomSize, _plan.heightM),
+        );
+      case null:
+        // Тянем за середину — двигаем комнату целиком.
+        final moved = rect.movedTo(
+          PlanGeometry.snap(meters.dx - rect.width / 2),
+          PlanGeometry.snap(meters.dy - rect.height / 2),
+        );
+        next = PlanRect(
+          left: moved.left.clamp(0.0, _plan.widthM - moved.width),
+          top: moved.top.clamp(0.0, _plan.heightM - moved.height),
+          width: moved.width,
+          height: moved.height,
+        );
+    }
+
+    _update(_plan.copyWith(
+      rooms: [
+        for (final r in _plan.rooms) r.id == id ? r.copyWith(rect: next) : r,
+      ],
+    ));
+  }
+
+  /// Отпустили комнату над другой — меняем их местами (размеры остаются).
+  void _swapIfOverlaps(String id) {
+    final room = _plan.rooms.firstWhere((r) => r.id == id);
+    final center = room.rect.center;
+    final target = _plan.rooms.where(
+      (r) => r.id != id && r.rect.contains(center.dx, center.dy),
+    ).firstOrNull;
+    if (target == null) return;
+
+    // Меняем позиции: каждая комната встаёт на место другой.
+    final a = room.rect;
+    final b = target.rect;
+    _update(_plan.copyWith(
+      rooms: [
+        for (final r in _plan.rooms)
+          if (r.id == id)
+            r.copyWith(rect: a.copyWith(left: b.left, top: b.top))
+          else if (r.id == target.id)
+            r.copyWith(rect: b.copyWith(left: a.left, top: a.top))
+          else
+            r,
+      ],
+    ));
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('${room.name} ↔ ${target.name}: поменяли местами'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
   }
 
   void _deleteSelected() {
@@ -246,43 +354,16 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                     ));
                   }
                 },
-                onRoomDrag: (id, delta) {
-                  final room = _plan.rooms.firstWhere((r) => r.id == id);
-                  final moved = room.rect.movedTo(
-                    PlanGeometry.snap(room.rect.left + delta.dx),
-                    PlanGeometry.snap(room.rect.top + delta.dy),
-                  );
-                  final clamped = PlanRect(
-                    left: moved.left.clamp(0.0, _plan.widthM - moved.width),
-                    top: moved.top.clamp(0.0, _plan.heightM - moved.height),
-                    width: moved.width,
-                    height: moved.height,
-                  );
-                  _update(_plan.copyWith(
-                    rooms: [
-                      for (final r in _plan.rooms)
-                        r.id == id ? r.copyWith(rect: clamped) : r,
-                    ],
-                  ));
+                onRoomGrab: (id, edge) => _grabbedEdge = edge,
+                onRoomDragTo: (id, meters) {
+                  _dragRoom(id, meters, _grabbedEdge);
                 },
-                onRoomResize: (id, corner) {
-                  final room = _plan.rooms.firstWhere((r) => r.id == id);
-                  final resized = room.rect.resizedTo(
-                    PlanGeometry.snap(corner.dx)
-                        .clamp(room.rect.left + PlanGeometry.minRoomSize,
-                            _plan.widthM),
-                    PlanGeometry.snap(corner.dy)
-                        .clamp(room.rect.top + PlanGeometry.minRoomSize,
-                            _plan.heightM),
-                  );
-                  _update(_plan.copyWith(
-                    rooms: [
-                      for (final r in _plan.rooms)
-                        r.id == id ? r.copyWith(rect: resized) : r,
-                    ],
-                  ));
+                onRoomDrop: (id) {
+                  _swapIfOverlaps(id);
+                  _grabbedEdge = null;
                 },
-                onDeviceDrag: (id, meters) {
+                onDeviceGrab: (id) => setState(() => _selectedDeviceId = id),
+                onDeviceDragTo: (id, meters) {
                   _update(_plan.copyWith(
                     devices: [
                       for (final d in _plan.devices)
@@ -295,7 +376,7 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                     ],
                   ));
                 },
-                onPanelDrag: (meters) {
+                onPanelDragTo: (meters) {
                   _update(_plan.copyWith(
                     panel: PlanPanel(
                       x: PlanGeometry.snap(meters.dx),

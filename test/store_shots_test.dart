@@ -14,7 +14,8 @@ import 'package:elektroshchit/presentation/project/object_type_screen.dart';
 import 'package:elektroshchit/presentation/project/overview_screen.dart';
 import 'package:elektroshchit/presentation/project/room_wizard_screen.dart';
 import 'package:elektroshchit/presentation/plan/plan_editor_screen.dart';
-import 'package:elektroshchit/plan/plan_canvas.dart';
+import 'package:elektroshchit/plan/plan_models.dart';
+import 'package:elektroshchit/plan/plan_seed.dart';
 import 'package:elektroshchit/presentation/project/rooms_flow_screen.dart';
 import 'package:elektroshchit/presentation/projects/projects_screen.dart';
 import 'package:elektroshchit/presentation/result/result_screen.dart';
@@ -322,22 +323,60 @@ void main() {
   });
 
   testWidgets('06 результат', (tester) async {
+    phone(tester);
+    addTearDown(tester.view.reset);
+    addTearDown(tester.view.resetPadding);
     SharedPreferences.setMockInitialValues({});
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final n = container.read(projectDraftProvider.notifier);
+    n.startProject(core.ObjectType.apartment, core.PhaseSystem.three);
+    n.setMeta(name: 'Квартира', totalArea: 62, ceilingHeight: 2.7);
+    n.setInput(allowedPowerKw: 15);
+    n.replaceRooms(const [
+      RoomDraft(
+        id: 'r1',
+        name: 'Кухня',
+        type: core.RoomType.kitchen,
+        socketsNormal: 6,
+        lights: 2,
+        area: 12,
+        cableLengthM: 18,
+      ),
+      RoomDraft(
+        id: 'r2',
+        name: 'Зал',
+        type: core.RoomType.livingRoom,
+        socketsNormal: 8,
+        lights: 3,
+        area: 22,
+        cableLengthM: 25,
+      ),
+    ]);
+
     final result = core.CircuitCalculator(norms)
         .calculate(demoProject(), socketLines: 2, lightingLines: 2);
+
     await tester.pumpWidget(
-      MaterialApp(
-        theme: shotTheme(),
-        debugShowCheckedModeBanner: false,
-        // Короткое имя: длинное обрезается в заголовке (видно на скриншоте).
-        home: ResultScreen(
-          result: result,
-          projectName: 'Квартира',
-          projectDetails: 'Ленина 5 · 62 м² · потолки 2.7 м · TN-C-S · ТУ 15 кВт',
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: shotTheme(),
+          debugShowCheckedModeBanner: false,
+          home: ResultScreen(
+            result: result,
+            projectName: 'Квартира',
+            projectDetails:
+                'Ленина 5 · 62 м² · потолки 2.7 м · TN-C-S · ТУ 15 кВт',
+          ),
         ),
       ),
     );
-    await snap(tester, '06_result');
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('store_shots/06_result.png'),
+    );
   });
 
   testWidgets('08 план помещения', (tester) async {
@@ -345,37 +384,98 @@ void main() {
     addTearDown(tester.view.reset);
     addTearDown(tester.view.resetPadding);
     SharedPreferences.setMockInitialValues({});
+
+    const draft = ProjectDraft(
+      rooms: [
+        RoomDraft(
+          id: 'r1',
+          name: 'Кухня',
+          type: core.RoomType.kitchen,
+          area: 12,
+        ),
+        RoomDraft(
+          id: 'r2',
+          name: 'Зал',
+          type: core.RoomType.livingRoom,
+          area: 20,
+        ),
+        RoomDraft(
+          id: 'r3',
+          name: 'Санузел',
+          type: core.RoomType.combinedBathroom,
+          area: 4,
+        ),
+      ],
+    );
+
+    // План из комнат проекта + расставленные точки: на скриншоте должны
+    // быть видны УГО розеток и трёхцветные линии от щита.
+    final seeded = PlanSeed.fromDraft(draft);
+    final kitchen = seeded.rooms.firstWhere((r) => r.name == 'Кухня');
+    final hall = seeded.rooms.firstWhere((r) => r.name == 'Зал');
+    final bath = seeded.rooms.firstWhere((r) => r.name == 'Санузел');
+    final plan = seeded.copyWith(devices: [
+      PlanDevice(
+        id: 's1',
+        type: PlanPointType.socket,
+        x: kitchen.rect.left + 0.6,
+        y: kitchen.rect.bottom - 0.4,
+        roomId: kitchen.id,
+      ),
+      PlanDevice(
+        id: 's2',
+        type: PlanPointType.socket,
+        x: kitchen.rect.left + 1.6,
+        y: kitchen.rect.bottom - 0.4,
+        roomId: kitchen.id,
+      ),
+      PlanDevice(
+        id: 'l1',
+        type: PlanPointType.light,
+        x: kitchen.rect.center.dx,
+        y: kitchen.rect.center.dy,
+        roomId: kitchen.id,
+      ),
+      PlanDevice(
+        id: 's3',
+        type: PlanPointType.socket,
+        x: hall.rect.left + 0.6,
+        y: hall.rect.bottom - 0.4,
+        roomId: hall.id,
+      ),
+      PlanDevice(
+        id: 'l2',
+        type: PlanPointType.light,
+        x: hall.rect.center.dx,
+        y: hall.rect.center.dy,
+        roomId: hall.id,
+      ),
+      PlanDevice(
+        id: 'pw1',
+        type: PlanPointType.powerful,
+        x: bath.rect.left + 0.5,
+        y: bath.rect.top + 0.5,
+        roomId: bath.id,
+      ),
+    ]);
+
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
           theme: shotTheme(),
           debugShowCheckedModeBanner: false,
           home: PlanEditorScreen(
-            draft: const ProjectDraft(),
+            draft: draft.copyWith(plan: plan),
             onChanged: (_) {},
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
-
-    // Собираем план прямо в редакторе: комнаты и точки.
-    final state = tester.state(find.byType(PlanEditorScreen));
-    // Добавляем комнаты через жесты: тап по пустому месту.
-    final canvas = find.byType(PlanCanvas);
-    expect(canvas, findsOneWidget);
-
-    // Комната 1 (левая верхняя), комната 2 (правая нижняя).
-    await tester.tapAt(tester.getTopLeft(canvas) + const Offset(90, 90));
-    await tester.pumpAndSettle();
-    await tester.tapAt(tester.getTopLeft(canvas) + const Offset(240, 250));
-    await tester.pumpAndSettle();
-
     await expectLater(
       find.byType(MaterialApp),
       matchesGoldenFile('store_shots/08_plan.png'),
     );
-    expect(state, isNotNull);
   });
 
   testWidgets('07 проекты', (tester) async {

@@ -14,6 +14,9 @@ import '../projects/projects_screen.dart'
     show projectStoreProvider, savedProjectsProvider;
 import '../../export/pdf_exporter.dart';
 import '../../core/theme.dart';
+import '../../plan/plan_models.dart';
+import '../../plan/plan_seed.dart';
+import '../plan/plan_editor_screen.dart';
 import '../../core/tips.dart';
 import '../widgets/tip_card.dart';
 
@@ -98,6 +101,10 @@ class ResultScreen extends StatelessWidget {
             const SizedBox(height: 10),
           ],
           _summaryCard(context, panel, input),
+          const SizedBox(height: 12),
+          Consumer(
+            builder: (context, ref, _) => _planCard(context, ref),
+          ),
           if (result.phaseBalance != null) ...[
             const SizedBox(height: 12),
             _phaseCard(context, result.phaseBalance!),
@@ -329,6 +336,74 @@ class ResultScreen extends StatelessWidget {
         SnackBar(content: Text('Не удалось собрать PDF: $e')),
       );
     }
+  }
+
+  /// План помещения: сюда переехал вход из главной.
+  ///
+  /// Черновик берём из провайдера: в нём уже есть комнаты, точки и щит.
+  Widget _planCard(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final draft = ref.watch(projectDraftProvider);
+    final plan = draft.plan ?? PlanSeed.fromDraft(draft);
+    final sockets = plan.devices
+        .where((d) => d.type == PlanPointType.socket)
+        .length;
+    final lights =
+        plan.devices.where((d) => d.type == PlanPointType.light).length;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.architecture, size: 20, color: scheme.primary),
+                const SizedBox(width: 8),
+                const Text(
+                  'План помещения',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Комнат: ${plan.rooms.length} · точек: ${plan.devices.length} '
+              '(розеток $sockets, свет $lights). '
+              'Разложите комнаты, поставьте точки и щит — длины трасс '
+              'посчитаются сами.',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.35,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonalIcon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => PlanEditorScreen(
+                        draft: draft,
+                        onChanged: (next) => ref
+                            .read(projectDraftProvider.notifier)
+                            .setPlan(next),
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('Открыть план'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _summaryCard(

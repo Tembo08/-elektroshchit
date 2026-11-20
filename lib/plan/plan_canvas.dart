@@ -5,23 +5,39 @@ import 'package:flutter/material.dart';
 import 'plan_geometry.dart';
 import 'plan_models.dart';
 
-/// Что делает палец в редакторе плана.
+/// Какая грань комнаты тянется.
+enum PlanEdge { left, right, top, bottom, corner }
+
+/// Режим работы пальца в редакторе.
 enum PlanTool { rooms, points, panel }
 
-/// Канвас плана: сетка, комнаты, точки, щит и линии от щита.
-///
-/// Рисуем вручную через CustomPainter: так проще держать попадания и
-/// перетаскивание под контролем, чем собирать это из виджетов.
+/// Цвета чертежа: белый лист, чёрные линии, проводники по ПУЭ.
+class PlanInk {
+  static const sheet = Color(0xFFFFFFFF);
+  static const grid = Color(0xFFE8EBEF);
+  static const gridBold = Color(0xFFD5DAE1);
+  static const ink = Color(0xFF111827);
+  static const inkSoft = Color(0xFF4B5563);
+  static const phase = Color(0xFFD32F2F); // L — красный
+  static const neutral = Color(0xFF1565C0); // N — синий
+  static const earth = Color(0xFF7CB342); // PE — жёлто-зелёный
+}
+
+/// Чертим план как схему: белый лист, чёрные контуры, УГО точек и
+/// трёхцветные линии (фаза, ноль, земля).
 class PlanCanvas extends StatelessWidget {
   final FloorPlan plan;
   final PlanTool tool;
   final String? selectedRoomId;
   final String? selectedDeviceId;
+
   final void Function(Offset meters) onTap;
-  final void Function(String roomId, Offset deltaMeters) onRoomDrag;
-  final void Function(String roomId, Offset cornerMeters) onRoomResize;
-  final void Function(String deviceId, Offset meters) onDeviceDrag;
-  final void Function(Offset meters) onPanelDrag;
+  final void Function(String roomId, PlanEdge? edge) onRoomGrab;
+  final void Function(String roomId, Offset pointMeters) onRoomDragTo;
+  final void Function(String roomId) onRoomDrop;
+  final void Function(String deviceId) onDeviceGrab;
+  final void Function(String deviceId, Offset pointMeters) onDeviceDragTo;
+  final void Function(Offset meters) onPanelDragTo;
   final void Function(String roomId) onSelectRoom;
   final void Function(String deviceId) onSelectDevice;
 
@@ -30,10 +46,12 @@ class PlanCanvas extends StatelessWidget {
     required this.plan,
     required this.tool,
     required this.onTap,
-    required this.onRoomDrag,
-    required this.onRoomResize,
-    required this.onDeviceDrag,
-    required this.onPanelDrag,
+    required this.onRoomGrab,
+    required this.onRoomDragTo,
+    required this.onRoomDrop,
+    required this.onDeviceGrab,
+    required this.onDeviceDragTo,
+    required this.onPanelDragTo,
     required this.onSelectRoom,
     required this.onSelectDevice,
     this.selectedRoomId,
@@ -42,131 +60,133 @@ class PlanCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return LayoutBuilder(
       builder: (context, constraints) {
-        // План вписываем в доступное место с полями; масштаб — пиксели на метр.
         final scale = math.min(
-          (constraints.maxWidth - 24) / plan.widthM,
-          (constraints.maxHeight - 24) / plan.heightM,
+          (constraints.maxWidth - 20) / plan.widthM,
+          (constraints.maxHeight - 20) / plan.heightM,
         );
         final offset = Offset(
           (constraints.maxWidth - plan.widthM * scale) / 2,
           (constraints.maxHeight - plan.heightM * scale) / 2,
         );
+        // TextPainter не наследует тему — семейство шрифта передаём явно,
+        // иначе подписи комнат рисуются квадратами.
+        final fontFamily =
+            Theme.of(context).textTheme.bodyMedium?.fontFamily;
 
-        Offset toPixels(Offset meters) => Offset(
-              offset.dx + meters.dx * scale,
-              offset.dy + meters.dy * scale,
-            );
         Offset toMeters(Offset pixels) => Offset(
               (pixels.dx - offset.dx) / scale,
               (pixels.dy - offset.dy) / scale,
             );
 
+        // Что схватили: грань комнаты, саму комнату, точку или щит.
+        String? grabbedRoom;
+        PlanEdge? grabbedEdge;
+        String? grabbedDevice;
+
+        void grab(Offset meters) {
+          grabbedRoom = null;
+          grabbedEdge = null;
+          grabbedDevice = null;
+
+          if (tool == PlanTool.points) {
+            final device = PlanGeometry.deviceAt(plan, meters.dx, meters.dy);
+            if (device != null) {
+              grabbedDevice = device.id;
+              onSelectDevice(device.id);
+              return;
+            }
+            return;
+          }
+          if (tool != PlanTool.rooms) return;
+
+          final room = PlanGeometry.roomAt(plan, meters.dx, meters.dy);
+          if (room == null) return;
+          onSelectRoom(room.id);
+          grabbedRoom = room.id;
+          grabbedEdge = _edgeAt(room.rect, meters, scale);
+        }
+
         return GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTapDown: (details) {
-            final m = toMeters(details.localPosition);
+            final meters = toMeters(details.localPosition);
             if (tool == PlanTool.points) {
-              final device = PlanGeometry.deviceAt(plan, m.dx, m.dy);
+              final device = PlanGeometry.deviceAt(plan, meters.dx, meters.dy);
               if (device != null) {
                 onSelectDevice(device.id);
                 return;
               }
             }
             if (tool == PlanTool.rooms) {
-              final room = PlanGeometry.roomAt(plan, m.dx, m.dy);
+              final room = PlanGeometry.roomAt(plan, meters.dx, meters.dy);
               if (room != null) {
                 onSelectRoom(room.id);
                 return;
               }
             }
-            onTap(m);
+            onTap(meters);
           },
           onPanStart: (details) {
-            final m = toMeters(details.localPosition);
-            if (tool == PlanTool.points) {
-              final device = PlanGeometry.deviceAt(plan, m.dx, m.dy);
-              if (device != null) {
-                onSelectDevice(device.id);
-                return;
-              }
-            }
-            final room = PlanGeometry.roomAt(plan, m.dx, m.dy);
-            if (room != null && tool == PlanTool.rooms) onSelectRoom(room.id);
+            final meters = toMeters(details.localPosition);
+            grab(meters);
+            if (grabbedDevice != null) onDeviceGrab(grabbedDevice!);
+            if (grabbedRoom != null) onRoomGrab(grabbedRoom!, grabbedEdge);
           },
           onPanUpdate: (details) {
-            final delta = details.delta / scale;
+            final meters = toMeters(details.localPosition);
             if (tool == PlanTool.panel) {
-              onPanelDrag(toMeters(details.localPosition));
+              onPanelDragTo(meters);
               return;
             }
-            if (tool == PlanTool.points && selectedDeviceId != null) {
-              onDeviceDrag(selectedDeviceId!, toMeters(details.localPosition));
+            if (grabbedDevice != null) {
+              onDeviceDragTo(grabbedDevice!, meters);
               return;
             }
-            if (tool == PlanTool.rooms && selectedRoomId != null) {
-              onRoomDrag(selectedRoomId!, delta);
+            if (grabbedRoom != null) {
+              onRoomDragTo(grabbedRoom!, meters);
             }
           },
-          child: Stack(
-            children: [
-              CustomPaint(
-                size: Size(constraints.maxWidth, constraints.maxHeight),
-                painter: _PlanPainter(
-                  plan: plan,
-                  scale: scale,
-                  origin: offset,
-                  scheme: scheme,
-                  selectedRoomId: selectedRoomId,
-                  selectedDeviceId: selectedDeviceId,
-                ),
-              ),
-              // маркер «угол комнаты» для изменения размера
-              if (tool == PlanTool.rooms && selectedRoomId != null)
-                ..._resizeHandle(context, toPixels, scale),
-            ],
+          onPanEnd: (_) {
+            if (grabbedRoom != null) onRoomDrop(grabbedRoom!);
+          },
+          child: CustomPaint(
+            size: Size(constraints.maxWidth, constraints.maxHeight),
+            painter: _PlanPainter(
+              plan: plan,
+              scale: scale,
+              origin: offset,
+              fontFamily: fontFamily,
+              selectedRoomId: selectedRoomId,
+              selectedDeviceId: selectedDeviceId,
+            ),
           ),
         );
       },
     );
   }
 
-  List<Widget> _resizeHandle(
-    BuildContext context,
-    Offset Function(Offset) toPixels,
-    double scale,
-  ) {
-    final room = plan.rooms.where((r) => r.id == selectedRoomId).firstOrNull;
-    if (room == null) return const [];
-    final corner = toPixels(Offset(room.rect.right, room.rect.bottom));
-    return [
-      Positioned(
-        left: corner.dx - 18,
-        top: corner.dy - 18,
-        child: GestureDetector(
-          onPanUpdate: (details) {
-            onRoomResize(
-              room.id,
-              Offset(
-                room.rect.right + details.delta.dx / scale,
-                room.rect.bottom + details.delta.dy / scale,
-              ),
-            );
-          },
-          child: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white24, width: 2),
-            ),
-            child: const Icon(Icons.open_in_full, size: 18, color: Colors.white),
-          ),
-        ),
-      ),
-    ];
+  /// Какая грань под пальцем: допуск 0.3 м, чтобы «взять за линию».
+  PlanEdge? _edgeAt(PlanRect rect, Offset meters, double scale) {
+    const tolerance = 0.35;
+    final nearLeft = (meters.dx - rect.left).abs() < tolerance;
+    final nearRight = (meters.dx - rect.right).abs() < tolerance;
+    final nearTop = (meters.dy - rect.top).abs() < tolerance;
+    final nearBottom = (meters.dy - rect.bottom).abs() < tolerance;
+    final insideY = meters.dy >= rect.top - tolerance &&
+        meters.dy <= rect.bottom + tolerance;
+    final insideX = meters.dx >= rect.left - tolerance &&
+        meters.dx <= rect.right + tolerance;
+
+    if ((nearRight && nearBottom) || (nearLeft && nearBottom)) {
+      return PlanEdge.corner;
+    }
+    if (nearLeft && insideY) return PlanEdge.left;
+    if (nearRight && insideY) return PlanEdge.right;
+    if (nearTop && insideX) return PlanEdge.top;
+    if (nearBottom && insideX) return PlanEdge.bottom;
+    return null;
   }
 }
 
@@ -174,15 +194,15 @@ class _PlanPainter extends CustomPainter {
   final FloorPlan plan;
   final double scale;
   final Offset origin;
-  final ColorScheme scheme;
   final String? selectedRoomId;
   final String? selectedDeviceId;
+  final String? fontFamily;
 
   _PlanPainter({
     required this.plan,
     required this.scale,
     required this.origin,
-    required this.scheme,
+    required this.fontFamily,
     this.selectedRoomId,
     this.selectedDeviceId,
   });
@@ -192,53 +212,50 @@ class _PlanPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    _drawSheet(canvas);
-    _drawGrid(canvas, size);
-    _drawRooms(canvas);
-    _drawWires(canvas);
-    _drawDevices(canvas);
-    _drawPanel(canvas);
+    _sheet(canvas);
+    _grid(canvas);
+    _rooms(canvas);
+    _wires(canvas);
+    _devices(canvas);
+    _panel(canvas);
   }
 
-  void _drawSheet(Canvas canvas) {
-    final paint = Paint()..color = const Color(0xFF12161C);
+  void _sheet(Canvas canvas) {
     canvas.drawRect(
       Rect.fromLTWH(origin.dx, origin.dy, plan.widthM * scale,
           plan.heightM * scale),
-      paint,
+      Paint()..color = PlanInk.sheet,
     );
   }
 
-  void _drawGrid(Canvas canvas, Size size) {
+  void _grid(Canvas canvas) {
     final thin = Paint()
-      ..color = Colors.white.withValues(alpha: 0.05)
+      ..color = PlanInk.grid
       ..strokeWidth = 1;
-    final thick = Paint()
-      ..color = Colors.white.withValues(alpha: 0.10)
+    final bold = Paint()
+      ..color = PlanInk.gridBold
       ..strokeWidth = 1;
 
-    // сетка по 0.5 м, каждая вторая линия — ярче (метр)
     for (var x = 0.0; x <= plan.widthM + 0.001; x += 0.5) {
-      final isMeter = (x - x.roundToDouble()).abs() < 0.001;
-      canvas.drawLine(_px(x, 0), _px(x, plan.heightM), isMeter ? thick : thin);
+      final meter = (x - x.roundToDouble()).abs() < 0.001;
+      canvas.drawLine(_px(x, 0), _px(x, plan.heightM), meter ? bold : thin);
     }
     for (var y = 0.0; y <= plan.heightM + 0.001; y += 0.5) {
-      final isMeter = (y - y.roundToDouble()).abs() < 0.001;
-      canvas.drawLine(_px(0, y), _px(plan.widthM, y), isMeter ? thick : thin);
+      final meter = (y - y.roundToDouble()).abs() < 0.001;
+      canvas.drawLine(_px(0, y), _px(plan.widthM, y), meter ? bold : thin);
     }
 
-    final border = Paint()
-      ..color = Colors.white.withValues(alpha: 0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
     canvas.drawRect(
       Rect.fromLTWH(origin.dx, origin.dy, plan.widthM * scale,
           plan.heightM * scale),
-      border,
+      Paint()
+        ..color = PlanInk.ink
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
     );
   }
 
-  void _drawRooms(Canvas canvas) {
+  void _rooms(Canvas canvas) {
     for (final room in plan.rooms) {
       final rect = Rect.fromLTWH(
         origin.dx + room.rect.left * scale,
@@ -247,141 +264,165 @@ class _PlanPainter extends CustomPainter {
         room.rect.height * scale,
       );
       final selected = room.id == selectedRoomId;
-      final fill = Paint()
-        ..color = (selected ? scheme.primary : scheme.surfaceContainerHigh)
-            .withValues(alpha: selected ? 0.22 : 0.55);
-      final stroke = Paint()
-        ..color = selected ? scheme.primary : Colors.white24
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = selected ? 3 : 1.5;
 
-      canvas.drawRect(rect, fill);
-      canvas.drawRect(rect, stroke);
-
-      // название и площадь
-      final label = '${room.name}\n${room.rect.area.toStringAsFixed(1)} м²';
-      final painter = TextPainter(
-        text: TextSpan(
-          text: label,
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.white70,
-            fontSize: 12,
-            height: 1.2,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-        textAlign: TextAlign.center,
-      )..layout(maxWidth: rect.width - 8);
-      painter.paint(
-        canvas,
-        Offset(
-          rect.center.dx - painter.width / 2,
-          rect.center.dy - painter.height / 2,
-        ),
+      canvas.drawRect(
+        rect,
+        Paint()..color = selected
+            ? const Color(0xFFEFF6FF)
+            : Colors.white,
       );
+      canvas.drawRect(
+        rect,
+        Paint()
+          ..color = selected ? const Color(0xFF1D4ED8) : PlanInk.ink
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = selected ? 2.4 : 1.6,
+      );
+
+      // Подпись — в левом верхнем углу комнаты: в центре обычно стоит
+      // светильник, и подпись под ним не читается (проверено по скриншоту).
+      if (rect.width > 26 && rect.height > 18) {
+        final painter = TextPainter(
+          text: TextSpan(
+            text: room.name,
+            style: TextStyle(
+              color: PlanInk.inkSoft,
+              fontSize: 8.5,
+              height: 1.1,
+              letterSpacing: 0.2,
+              fontFamily: fontFamily,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+          maxLines: 1,
+          ellipsis: '…',
+        )..layout(maxWidth: math.max(20, rect.width - 8));
+        painter.paint(canvas, Offset(rect.left + 3, rect.top + 2));
+      }
     }
   }
 
-  void _drawWires(Canvas canvas) {
-    final wire = Paint()
-      ..color = const Color(0xFFD64545).withValues(alpha: 0.45)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
+  /// Три проводника вдоль одной трассы: L, N, PE.
+  void _wires(Canvas canvas) {
+    const gap = 2.4;
+    final colors = [PlanInk.phase, PlanInk.neutral, PlanInk.earth];
 
     for (final device in plan.devices) {
-      final points = PlanGeometry.route(plan, device);
-      final path = Path()..moveTo(_px(points.first.dx, points.first.dy).dx,
-          _px(points.first.dx, points.first.dy).dy);
-      for (final p in points.skip(1)) {
-        final px = _px(p.dx, p.dy);
-        path.lineTo(px.dx, px.dy);
+      final route = PlanGeometry.route(plan, device);
+      for (var i = 0; i < colors.length; i++) {
+        final shift = (i - 1) * gap;
+        final paint = Paint()
+          ..color = colors[i]
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3
+          ..strokeJoin = StrokeJoin.round;
+
+        final path = Path();
+        for (var p = 0; p < route.length; p++) {
+          final point = _px(route[p].dx, route[p].dy);
+          // Смещаем каждую жилу перпендикулярно сегменту — так три
+          // разноцветные линии не сливаются в одну.
+          final prev = p > 0 ? route[p - 1] : route[p];
+          final next = p < route.length - 1 ? route[p + 1] : route[p];
+          final horizontal = (next.dx - prev.dx).abs() >= (next.dy - prev.dy).abs();
+          final offset = horizontal ? Offset(0, shift) : Offset(shift, 0);
+          if (p == 0) {
+            path.moveTo(point.dx + offset.dx, point.dy + offset.dy);
+          } else {
+            path.lineTo(point.dx + offset.dx, point.dy + offset.dy);
+          }
+        }
+        canvas.drawPath(path, paint);
       }
-      canvas.drawPath(path, wire);
     }
   }
 
-  void _drawDevices(Canvas canvas) {
+  /// УГО по ГОСТ: розетка — полукруг с двумя штрихами, свет — кружок с
+  /// крестом, мощный прибор — кружок в кольце.
+  void _devices(Canvas canvas) {
+    final ink = Paint()
+      ..color = PlanInk.ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
     for (final device in plan.devices) {
       final p = _px(device.x, device.y);
       final selected = device.id == selectedDeviceId;
-      final (color, radius) = switch (device.type) {
-        PlanPointType.socket => (const Color(0xFF4CE89E), 5.0),
-        PlanPointType.light => (const Color(0xFFFFD166), 5.0),
-        PlanPointType.powerful => (const Color(0xFFFF8C42), 6.0),
-      };
+      final r = selected ? 7.0 : 5.5;
 
-      if (device.type == PlanPointType.light) {
-        // свет — кружок с крестом, как на схемах
-        canvas.drawCircle(p, radius + (selected ? 4 : 2),
-            Paint()..color = color.withValues(alpha: selected ? 0.35 : 0.18));
+      if (selected) {
         canvas.drawCircle(
-            p, radius, Paint()
-              ..color = color
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2);
-        canvas.drawLine(p - Offset(radius, 0), p + Offset(radius, 0),
-            Paint()..color = color..strokeWidth = 1.5);
-        canvas.drawLine(p - Offset(0, radius), p + Offset(0, radius),
-            Paint()..color = color..strokeWidth = 1.5);
-      } else {
-        canvas.drawCircle(p, radius + (selected ? 5 : 2),
-            Paint()..color = color.withValues(alpha: selected ? 0.35 : 0.15));
-        canvas.drawCircle(p, radius, Paint()..color = color);
-        if (device.type == PlanPointType.powerful) {
-          canvas.drawCircle(
-              p, radius + 3,
-              Paint()
-                ..color = color
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.5);
-        }
+          p,
+          r + 5,
+          Paint()..color = const Color(0xFF1D4ED8).withValues(alpha: 0.15),
+        );
+      }
+
+      switch (device.type) {
+        case PlanPointType.socket:
+          // полукруг + два усика (вилка)
+          canvas.drawArc(
+            Rect.fromCircle(center: p, radius: r),
+            math.pi,
+            math.pi,
+            false,
+            ink,
+          );
+          canvas.drawLine(
+              p + Offset(-r, 0), p + Offset(r, 0), ink);
+          canvas.drawLine(
+              p + Offset(-r * 0.45, 0), p + Offset(-r * 0.45, -r), ink);
+          canvas.drawLine(
+              p + Offset(r * 0.45, 0), p + Offset(r * 0.45, -r), ink);
+        case PlanPointType.light:
+          canvas.drawCircle(p, r, ink);
+          canvas.drawLine(
+              p + Offset(-r, -r) * 0.72, p + Offset(r, r) * 0.72, ink);
+          canvas.drawLine(
+              p + Offset(-r, r) * 0.72, p + Offset(r, -r) * 0.72, ink);
+        case PlanPointType.powerful:
+          canvas.drawCircle(p, r, ink);
+          canvas.drawCircle(p, r + 2.5, ink);
       }
     }
   }
 
-  void _drawPanel(Canvas canvas) {
-    final w = PlanPanel.widthM * scale;
-    final h = PlanPanel.heightM * scale;
+  void _panel(Canvas canvas) {
     final rect = Rect.fromCenter(
       center: _px(plan.panel.x, plan.panel.y),
-      width: w,
-      height: h,
+      width: PlanPanel.widthM * scale,
+      height: PlanPanel.heightM * scale,
     );
-
-    // обозначение щита как на схемах: прямоугольник с диагональю,
-    // залитая половина и подпись «Щит»
-    canvas.drawRect(rect, Paint()..color = const Color(0xFF35E6FF));
+    canvas.drawRect(rect, Paint()..color = Colors.white);
     canvas.drawRect(
       rect,
       Paint()
-        ..color = const Color(0xFF0B0F14)
+        ..color = PlanInk.ink
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5,
-    );
-    final path = Path()
-      ..moveTo(rect.left, rect.top)
-      ..lineTo(rect.right, rect.bottom);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = const Color(0xFF0B0F14)
         ..strokeWidth = 2,
     );
+    canvas.drawLine(
+      rect.topLeft,
+      rect.bottomRight,
+      Paint()
+        ..color = PlanInk.ink
+        ..strokeWidth = 1.4,
+    );
 
-    final painter = TextPainter(
+    final label = TextPainter(
       text: const TextSpan(
         text: 'Щит',
         style: TextStyle(
-          color: Color(0xFF35E6FF),
-          fontSize: 13,
+          color: PlanInk.ink,
+          fontSize: 9,
           fontWeight: FontWeight.w700,
         ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    painter.paint(
+    label.paint(
       canvas,
-      Offset(rect.center.dx - painter.width / 2, rect.bottom + 4),
+      Offset(rect.center.dx - label.width / 2, rect.bottom + 2),
     );
   }
 
@@ -391,5 +432,6 @@ class _PlanPainter extends CustomPainter {
       old.scale != scale ||
       old.origin != origin ||
       old.selectedRoomId != selectedRoomId ||
-      old.selectedDeviceId != selectedDeviceId;
+      old.selectedDeviceId != selectedDeviceId ||
+      old.fontFamily != fontFamily;
 }

@@ -71,8 +71,12 @@ class OverviewScreen extends ConsumerWidget {
       final fromPlan = _fromPlan(draft.plan, d);
       // Число точек с плана важнее ручного ввода: если розетки расставлены,
       // считаем именно их.
-      final socketCount = fromPlan.sockets ?? d.socketsNormal;
-      final lightCount = fromPlan.lights ?? d.lights;
+      // План главнее только если точки реально стоят: пустая комната
+      // на плане не должна обнулять то, что введено в визарде.
+      final planSockets = fromPlan.sockets ?? 0;
+      final planLights = fromPlan.lights ?? 0;
+      final socketCount = planSockets > 0 ? planSockets : d.socketsNormal;
+      final lightCount = planLights > 0 ? planLights : d.lights;
 
       if (socketCount > 0) {
         consumers.add(
