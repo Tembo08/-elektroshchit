@@ -149,13 +149,21 @@ void main() {
     expect(names.indexOf('Санузел'), lessThan(names.indexOf('Балкон')));
   });
 
-  test('щит стоит в прихожей', () {
+  test('щит стоит вне квартиры, слева от комнат', () {
     final draft = sampleDraft();
     final result = core.CircuitCalculator(norms)
         .calculate(projectOf(draft), socketLines: 2, lightingLines: 2);
     final plan = PlanAuto.build(draft: draft, result: result).plan;
-    final entrance = plan.rooms.firstWhere((r) => r.name == 'Прихожая');
-    expect(entrance.rect.contains(plan.panel.x, plan.panel.y), isTrue);
+
+    // Раньше щит был внутри прихожей; на бытовых планах он вынесен наружу.
+    for (final room in plan.rooms) {
+      expect(room.rect.contains(plan.panel.x, plan.panel.y), isFalse,
+          reason: 'щит не должен стоять внутри комнаты ${room.name}');
+    }
+    final leftmost = plan.rooms
+        .map((r) => r.rect.left)
+        .reduce((a, b) => a < b ? a : b);
+    expect(plan.panel.x, lessThan(leftmost));
   });
 
   test('точек столько же, сколько в проекте', () {

@@ -21,6 +21,16 @@ class PlanInk {
   static const phase = Color(0xFFD32F2F); // L — красный
   static const neutral = Color(0xFF1565C0); // N — синий
   static const earth = Color(0xFF7CB342); // PE — жёлто-зелёный
+
+  /// Цвета групп: одна линия на группу, как на бытовых планах.
+  static const group = [
+    Color(0xFF00ACC1), // голубая
+    Color(0xFFE91E63), // розовая
+    Color(0xFFD32F2F), // красная
+    Color(0xFF1565C0), // синяя
+    Color(0xFF43A047), // зелёная
+    Color(0xFFFB8C00), // оранжевая
+  ];
 }
 
 /// Чертим план как схему: белый лист, чёрные контуры, УГО точек и
@@ -241,9 +251,11 @@ class _PlanPainter extends CustomPainter {
     _rooms(canvas);
     _wires(canvas);
     _devices(canvas);
+    _doors(canvas);
     _panel(canvas);
     _roomLabels(canvas);
     _groupLabels(canvas);
+    _scaleBar(canvas);
   }
 
   void _sheet(Canvas canvas) {
@@ -297,12 +309,20 @@ class _PlanPainter extends CustomPainter {
             ? const Color(0xFFEFF6FF)
             : Colors.white,
       );
+      // стена «толщиной»: две линии — внешняя и внутренняя
       canvas.drawRect(
         rect,
         Paint()
           ..color = selected ? const Color(0xFF1D4ED8) : PlanInk.ink
           ..style = PaintingStyle.stroke
-          ..strokeWidth = selected ? 2.8 : 2.2,
+          ..strokeWidth = selected ? 7.0 : 6.0,
+      );
+      canvas.drawRect(
+        rect.deflate(2.6),
+        Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.6,
       );
 
     }
@@ -359,78 +379,138 @@ class _PlanPainter extends CustomPainter {
     }
   }
 
-  /// Три проводника вдоль одной трассы: L, N, PE.
+  /// Одна цветная линия на группу, только по стенам и вертикалям.
   ///
-  /// Магистраль ведём по одной на комнату (до ближайшей к щиту точки):
-  /// тянуть отдельную линию к каждой розетке — «паутина», в которой
-  /// монтажник ничего не разберёт.
+  /// Раньше соседние точки соединялись напрямую — получались диагонали
+  /// через комнату. Теперь: магистраль по коридору → вдоль стены → отвод
+  /// вверх к светильнику.
   void _wires(Canvas canvas) {
-    const gap = 2.4;
-    final colors = [PlanInk.phase, PlanInk.neutral, PlanInk.earth];
-
     _pendingLabels.clear();
     final byRoom = <String, List<PlanDevice>>{};
     for (final device in plan.devices) {
       byRoom.putIfAbsent(device.roomId, () => []).add(device);
     }
 
+    final rooms = {for (final r in plan.rooms) r.id: r};
+    var colorIndex = 0;
+    final wallOffset = 0.12;
+
     for (final entry in byRoom.entries) {
-      final roomDevices = entry.value;
-      var nearest = roomDevices.first;
-      var best = double.infinity;
-      for (final device in roomDevices) {
-        final length = (device.x - plan.panel.x).abs() +
-            (device.y - plan.panel.y).abs();
-        if (length < best) {
-          best = length;
-          nearest = device;
-        }
+      final room = rooms[entry.key];
+      final devices = [...entry.value];
+      if (room == null || devices.isEmpty) continue;
+
+      final color = PlanInk.group[colorIndex % PlanInk.group.length];
+      colorIndex++;
+      final paint = Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round;
+
+      // Стена, вдоль которой идёт группа: низ комнаты.
+      final wallY = room.rect.bottom - wallOffset;
+      final sockets = devices
+          .where((d) => d.type == PlanPointType.socket ||
+              d.type == PlanPointType.switchPoint)
+          .toList()
+        ..sort((a, b) => a.x.compareTo(b.x));
+      final others = devices
+          .where((d) => d.type == PlanPointType.light ||
+              d.type == PlanPointType.powerful)
+          .toList();
+
+      final entryX = sockets.isNotEmpty ? sockets.first.x : room.rect.left + 0.3;
+
+      // магистраль: щит → коридор → стена комнаты
+      final path = Path();
+      final start = _px(plan.panel.x + PlanPanel.widthM / 2 + 0.08, plan.panel.y);
+      final corridor = _px(plan.panel.x, plan.corridorY ?? plan.panel.y);
+      final alongCorridor = _px(entryX, plan.corridorY ?? plan.panel.y);
+      final onWall = _px(entryX, wallY);
+      path.moveTo(start.dx, start.dy);
+      path.lineTo(corridor.dx, corridor.dy);
+      path.lineTo(alongCorridor.dx, alongCorridor.dy);
+      path.lineTo(onWall.dx, onWall.dy);
+      canvas.drawPath(path, paint);
+
+      // вдоль стены через все розетки и выключатели
+      if (sockets.length > 1) {
+        final left = _px(sockets.first.x, wallY);
+        final right = _px(sockets.last.x, wallY);
+        canvas.drawLine(left, right, paint);
       }
 
-      final device = nearest;
-      final route = PlanGeometry.route(plan, device);
-      for (var i = 0; i < colors.length; i++) {
-        final shift = (i - 1) * gap;
-        final paint = Paint()
-          ..color = colors[i]
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.7
-          ..strokeJoin = StrokeJoin.round;
-
-        final path = Path();
-        for (var p = 0; p < route.length; p++) {
-          final point = _px(route[p].dx, route[p].dy);
-          // Смещаем каждую жилу перпендикулярно сегменту — так три
-          // разноцветные линии не сливаются в одну.
-          final prev = p > 0 ? route[p - 1] : route[p];
-          final next = p < route.length - 1 ? route[p + 1] : route[p];
-          final horizontal = (next.dx - prev.dx).abs() >= (next.dy - prev.dy).abs();
-          final offset = horizontal ? Offset(0, shift) : Offset(shift, 0);
-          if (p == 0) {
-            path.moveTo(point.dx + offset.dx, point.dy + offset.dy);
-          } else {
-            path.lineTo(point.dx + offset.dx, point.dy + offset.dy);
-          }
-        }
-        canvas.drawPath(path, paint);
+      // отводы вверх к светильникам и мощным приборам
+      for (final device in others) {
+        final from = _px(device.x, wallY);
+        final to = _px(device.x, device.y);
+        canvas.drawLine(from, to, paint);
       }
 
-      // Номер группы — у магистрали (в коридоре). Саму подпись рисуем
-      // последним проходом: иначе её закрывает символ щита.
       final label = groupLabels[entry.key];
-      if (label == null || label.isEmpty) continue;
-      final corridor = plan.corridorY;
-      final anchor = corridor != null
-          ? _px(device.x, corridor)
-          : _px(nearest.x, nearest.y);
-      _pendingLabels.add((anchor, 'Гр. $label'));
+      if (label != null && label.isNotEmpty) {
+        _pendingLabels.add((onWall, 'Гр. $label'));
+      }
     }
   }
 
-  /// Подписи групп: тонкая выноска под 45° и номер справа.
-  ///
-  /// Номера выравниваем по одной вертикали со ступенькой — так 20+ номеров
-  /// не наезжают друг на друга (приём из ТЗ проектировщика).
+  /// Линейка масштаба: отрезок 1 м с подписью — чтобы читался размер.
+  void _scaleBar(Canvas canvas) {
+    final y = origin.dy + plan.heightM * scale + 12;
+    final x0 = origin.dx + 4;
+    final x1 = x0 + scale;
+    final paint = Paint()
+      ..color = PlanInk.ink
+      ..strokeWidth = 1.6;
+
+    canvas.drawLine(Offset(x0, y), Offset(x1, y), paint);
+    canvas.drawLine(Offset(x0, y - 4), Offset(x0, y + 4), paint);
+    canvas.drawLine(Offset(x1, y - 4), Offset(x1, y + 4), paint);
+
+    final label = TextPainter(
+      text: TextSpan(
+        text: '1 м',
+        style: TextStyle(
+          color: PlanInk.ink,
+          fontSize: 8,
+          fontFamily: fontFamily,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    label.paint(canvas, Offset(x1 + 4, y - label.height / 2));
+  }
+
+  /// Двери: разрыв в стене + дуга открывания.
+  void _doors(Canvas canvas) {
+    final wipe = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.2;
+    final ink = Paint()
+      ..color = PlanInk.ink
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+
+    final doorWidth = 0.9 * scale;
+
+    for (final room in plan.rooms) {
+      if (room.rect.width < 2.2 || room.rect.height < 2.2) continue;
+      final left = _px(room.rect.left + 0.4, room.rect.bottom);
+      canvas.drawLine(left, left + Offset(doorWidth, 0), wipe);
+      canvas.drawArc(
+        Rect.fromCircle(center: left, radius: doorWidth),
+        -math.pi / 2,
+        math.pi / 2,
+        false,
+        ink,
+      );
+    }
+  }
+
+  /// Номера групп: тонкая выноска от трассы + номер, со ступенькой.
   void _groupLabels(Canvas canvas) {
     final leader = Paint()
       ..color = PlanInk.ink
@@ -452,14 +532,13 @@ class _PlanPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
 
-      // Ступенька, чтобы соседние номера не сливались.
       final step = (i % 4) * 7.0;
-      final end = anchor + Offset(10, -10 - step);
+      final end = anchor + Offset(9, 9 + step);
       canvas.drawLine(anchor, end, leader);
 
       final box = Rect.fromLTWH(
-        end.dx + 1,
-        end.dy - painter.height / 2,
+        end.dx - painter.width / 2,
+        end.dy + 1,
         painter.width + 3,
         painter.height,
       );
@@ -468,21 +547,22 @@ class _PlanPainter extends CustomPainter {
     }
   }
 
-  /// УГО по ГОСТ: розетка — полукруг с двумя штрихами, свет — кружок с
-  /// крестом, мощный прибор — кружок в кольце.
+  /// УГО как на бытовом плане: розетка — кружок с двумя контактами и дугой,
+  /// светильник — кружок с крестом, выключатель — отрезок с точками и
+  /// наклонной чертой. Размеры привязаны к масштабу листа (≈2.5 % ширины).
   void _devices(Canvas canvas) {
     final ink = Paint()
       ..color = PlanInk.ink
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.9;
+      ..strokeWidth = 1.6;
 
     for (final device in plan.devices) {
       final p = _px(device.x, device.y);
+      final r = 0.115 * scale; // ≈2.5 % ширины листа в диаметре
       final selected = device.id == selectedDeviceId;
-      final r = selected ? 7.0 : 5.5;
 
-      // Белый ореол: символы читаются поверх трасс.
-      canvas.drawCircle(p, r + 3.2, Paint()..color = Colors.white);
+      // Белая подложка: символ не сливается с трассами.
+      canvas.drawCircle(p, r + 2, Paint()..color = Colors.white);
       if (selected) {
         canvas.drawCircle(
           p,
@@ -493,93 +573,131 @@ class _PlanPainter extends CustomPainter {
 
       switch (device.type) {
         case PlanPointType.socket:
-          // полукруг на стене + две насечки внутрь помещения
+          canvas.drawCircle(p, r, ink);
+          // две точки-контакта
+          canvas.drawCircle(p + Offset(-r * 0.35, 0), r * 0.13,
+              Paint()..color = PlanInk.ink);
+          canvas.drawCircle(p + Offset(r * 0.35, 0), r * 0.13,
+              Paint()..color = PlanInk.ink);
+          // дуга «личиком» вверх
           canvas.drawArc(
-            Rect.fromCircle(center: p, radius: r),
-            math.pi,
-            math.pi,
+            Rect.fromCircle(center: p + Offset(0, r * 0.08), radius: r * 0.62),
+            3.5,
+            2.3,
             false,
             ink,
           );
-          canvas.drawLine(p + Offset(-r, 0), p + Offset(r, 0), ink);
-          canvas.drawLine(
-              p + Offset(-r * 0.45, 0), p + Offset(-r * 0.45, -r * 1.1), ink);
-          canvas.drawLine(
-              p + Offset(r * 0.45, 0), p + Offset(r * 0.45, -r * 1.1), ink);
         case PlanPointType.light:
           canvas.drawCircle(p, r, ink);
           canvas.drawLine(
-              p + Offset(-r, -r) * 0.72, p + Offset(r, r) * 0.72, ink);
+              p + Offset(-r * 0.62, -r * 0.62), p + Offset(r * 0.62, r * 0.62), ink);
           canvas.drawLine(
-              p + Offset(-r, r) * 0.72, p + Offset(r, -r) * 0.72, ink);
+              p + Offset(-r * 0.62, r * 0.62), p + Offset(r * 0.62, -r * 0.62), ink);
         case PlanPointType.switchPoint:
-          // отрезок с наклонной насечкой под 45° — как на образце
-          canvas.drawLine(p + Offset(-r, 0), p + Offset(r, 0), ink);
+          // отрезок от стены, две точки и наклонная черта
+          canvas.drawLine(p + Offset(-r * 1.4, 0), p + Offset(r * 0.2, 0), ink);
+          canvas.drawCircle(p + Offset(-r * 1.4, 0), r * 0.12,
+              Paint()..color = PlanInk.ink);
+          canvas.drawCircle(p, r * 0.12, Paint()..color = PlanInk.ink);
           canvas.drawLine(
-              p + Offset(r * 0.55, 0), p + Offset(-r * 0.1, -r * 1.5), ink);
+              p + Offset(r * 0.2, 0), p + Offset(r * 0.9, -r * 0.9), ink);
         case PlanPointType.powerful:
           canvas.drawCircle(p, r, ink);
-          canvas.drawCircle(p, r + 2.5, ink);
+          canvas.drawCircle(p, r * 0.55, ink);
       }
     }
   }
 
+  /// Щит ВНЕ квартиры: пунктирная рамка, модули-автоматы, подпись ввода.
   void _panel(Canvas canvas) {
+    final w = PlanPanel.widthM * scale;
+    final h = PlanPanel.heightM * scale;
     final rect = Rect.fromCenter(
       center: _px(plan.panel.x, plan.panel.y),
-      width: PlanPanel.widthM * scale,
-      height: PlanPanel.heightM * scale,
+      width: w,
+      height: h,
     );
+
+    // пунктирная рамка
+    final dash = Paint()
+      ..color = PlanInk.inkSoft
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final frame = rect.inflate(scale * 0.18);
+    _dashedRect(canvas, frame, dash);
+
+    // корпус щита
     canvas.drawRect(rect, Paint()..color = Colors.white);
     canvas.drawRect(
       rect,
       Paint()
         ..color = PlanInk.ink
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-    canvas.drawLine(
-      rect.topLeft,
-      rect.bottomRight,
-      Paint()
-        ..color = PlanInk.ink
-        ..strokeWidth = 1.4,
+        ..strokeWidth = 1.8,
     );
 
+    // модули-автоматы: три деления
+    final moduleW = rect.width / 3;
+    for (var i = 1; i < 3; i++) {
+      canvas.drawLine(
+        Offset(rect.left + moduleW * i, rect.top),
+        Offset(rect.left + moduleW * i, rect.bottom),
+        Paint()
+          ..color = PlanInk.ink
+          ..strokeWidth = 1,
+      );
+    }
+    // тумблеры
+    for (var i = 0; i < 3; i++) {
+      final cx = rect.left + moduleW * (i + 0.5);
+      canvas.drawLine(
+        Offset(cx, rect.top + rect.height * 0.25),
+        Offset(cx, rect.top + rect.height * 0.6),
+        Paint()
+          ..color = PlanInk.ink
+          ..strokeWidth = 2,
+      );
+    }
+
     final label = TextPainter(
-      text: const TextSpan(
-        text: 'Щит',
+      text: TextSpan(
+        text: panelNote ?? 'Щит',
         style: TextStyle(
           color: PlanInk.ink,
-          fontSize: 9,
+          fontSize: 8,
           fontWeight: FontWeight.w700,
+          fontFamily: fontFamily,
         ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
     label.paint(
       canvas,
-      Offset(rect.center.dx - label.width / 2, rect.bottom + 2),
+      Offset(rect.center.dx - label.width / 2, frame.bottom + 2),
     );
-
-    if (panelNote != null && panelNote!.isNotEmpty) {
-      final note = TextPainter(
-        text: TextSpan(
-          text: panelNote,
-          style: TextStyle(
-            color: PlanInk.inkSoft,
-            fontSize: 7,
-            fontFamily: fontFamily,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      note.paint(
-        canvas,
-        Offset(rect.center.dx - note.width / 2, rect.bottom + 2 + label.height),
-      );
-    }
   }
+
+  /// Пунктирная рамка вокруг щита.
+  void _dashedRect(Canvas canvas, Rect rect, Paint paint) {
+    const dash = 6.0;
+    const gap = 4.0;
+    void line(Offset a, Offset b) {
+      final total = (b - a).distance;
+      final dir = (b - a) / total;
+      var t = 0.0;
+      while (t < total) {
+        final end = math.min(t + dash, total);
+        canvas.drawLine(a + dir * t, a + dir * end, paint);
+        t = end + gap;
+      }
+    }
+
+    line(rect.topLeft, rect.topRight);
+    line(rect.topRight, rect.bottomRight);
+    line(rect.bottomRight, rect.bottomLeft);
+    line(rect.bottomLeft, rect.topLeft);
+  }
+
 
   @override
   bool shouldRepaint(covariant _PlanPainter old) =>

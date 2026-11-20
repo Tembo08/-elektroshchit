@@ -22,6 +22,9 @@ class PlanAuto {
   /// Полоса под щит и подписи сверху листа.
   static const topBand = 0.9;
 
+  /// Полоса слева: щит стоит ВНЕ квартиры, в пунктирной рамке.
+  static const panelBand = 1.7;
+
   /// Собирает план и подписи групп по комнатам.
   static ({FloorPlan plan, Map<String, String> groupLabels}) build({
     required ProjectDraft draft,
@@ -48,15 +51,15 @@ class PlanAuto {
     // Раскладка одна для всех экранов: план должен быть одинаковым на
     // телефоне и на ПК, иначе это уже другой проект.
     const sheetW = 9.0;
-    var x = gap;
+    var x = panelBand + gap;
     var y = topBand;
     var rowHeight = 0.0;
 
     for (final room in ordered) {
       final size = _sizeFor(room);
       var w = math.min(size.$1, sheetW - gap * 2);
-      if (x + w + gap > sheetW && x > gap) {
-        x = gap;
+      if (x + w + gap > sheetW && x > panelBand + gap) {
+        x = panelBand + gap;
         y += rowHeight + gap;
         rowHeight = 0;
       }
@@ -82,18 +85,11 @@ class PlanAuto {
 
     final sheetH = y + rowHeight + gap;
 
-    // Щит — в прихожей, если она есть; иначе в левом верхнем углу.
-    final entrance = rooms
-        .where((r) =>
-            r.type == core.RoomType.entrance ||
-            r.type == core.RoomType.hallway)
-        .firstOrNull;
-    final panel = entrance != null
-        ? PlanPanel(
-            x: _q(entrance.rect.left + 0.55),
-            y: _q(entrance.rect.top + 0.5),
-          )
-        : const PlanPanel(x: 0.55, y: 0.5);
+    // Щит — слева, вне квартиры: как на бытовых планах.
+    final panel = PlanPanel(
+      x: _q(panelBand / 2),
+      y: _q(topBand + rowHeight * 0 + 0.6),
+    );
 
     final plan = FloorPlan(
       widthM: _q(math.max(sheetW, x + gap)),

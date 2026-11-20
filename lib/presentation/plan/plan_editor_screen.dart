@@ -408,12 +408,10 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
         children: [
           Expanded(
             child: _ToolSwitch<PlanPointType>(
-              values: const [
-                PlanPointType.socket,
-                PlanPointType.light,
-                PlanPointType.powerful,
-              ],
-              labels: const {'Розетка', 'Свет', 'Мощный'},
+              // «Мощный» убран по просьбе Романа: такие приборы приходят
+              // из расчёта и рисуются на плане автоматически.
+              values: const [PlanPointType.socket, PlanPointType.light],
+              labels: const {'Розетка', 'Свет'},
               selected: _pointType,
               onChanged: (v) => setState(() => _pointType = v),
             ),

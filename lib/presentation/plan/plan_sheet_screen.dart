@@ -163,12 +163,77 @@ class PlanSheetScreen extends ConsumerWidget {
       shrinkWrap: true,
       padding: const EdgeInsets.fromLTRB(0, 0, 12, 12),
       children: [
+        _explication(context, scheme, plan),
+        const SizedBox(height: 10),
         _legend(context, scheme),
         const SizedBox(height: 10),
         _groupsTable(context, scheme),
         const SizedBox(height: 10),
         _stamp(context, scheme, sockets, lights, switches),
       ],
+    );
+  }
+
+  /// Экспликация помещений: № / наименование / площадь.
+  Widget _explication(
+    BuildContext context,
+    ColorScheme scheme,
+    FloorPlan plan,
+  ) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text(
+                  'Экспликация помещений',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+                const Spacer(),
+                Text(
+                  '${plan.rooms.fold<double>(0, (s, r) => s + r.rect.area).toStringAsFixed(1)} м²',
+                  style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            for (var i = 0; i < plan.rooms.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      child: Text(
+                        '${i + 1}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        plan.rooms[i].name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11.5),
+                      ),
+                    ),
+                    Text(
+                      plan.rooms[i].rect.area.toStringAsFixed(1),
+                      style: const TextStyle(fontSize: 11.5),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
