@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
-  static const _version = '1.0.0';
+  /// Держать в одном месте с pubspec.yaml (version: 1.0.1+2).
+  static const _version = '1.0.1';
 
   @override
   Widget build(BuildContext context) {
