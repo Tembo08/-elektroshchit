@@ -149,9 +149,11 @@ class _RoomsFlowScreenState extends ConsumerState<RoomsFlowScreen> {
               onUndo: _undoDelete,
               onClose: () => setState(() => _lastDeleted = null),
             ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: TipCard(screen: TipScreen.rooms),
+          // FAB «Комната» висит над нижней панелью и перекрывал подсказку:
+          // когда кнопка видна, оставляем под ней место.
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, rooms.isEmpty ? 8 : 76),
+            child: const TipCard(screen: TipScreen.rooms),
           ),
         ],
       ),
