@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:elektroshchit/core/project_draft.dart';
 import 'package:elektroshchit/core/theme.dart';
 import 'package:elektroshchit/presentation/home/home_screen.dart';
+import 'package:elektroshchit/presentation/plan/plan_screen.dart';
 import 'package:elektroshchit/presentation/project/object_type_screen.dart';
 import 'package:elektroshchit/presentation/project/overview_screen.dart';
 import 'package:elektroshchit/presentation/project/room_wizard_screen.dart';
@@ -380,6 +381,30 @@ void main() {
       find.byType(MaterialApp),
       matchesGoldenFile('store_shots/06_result.png'),
     );
+  });
+
+  testWidgets('11 план помещения', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    container.read(projectDraftProvider.notifier).replaceDraft(demoDraft());
+    final result = core.CircuitCalculator(norms).calculate(
+      demoProject(),
+      socketLines: 2,
+      lightingLines: 2,
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: shotTheme(),
+          debugShowCheckedModeBanner: false,
+          home: PlanScreen(result: result, projectName: 'Квартира'),
+        ),
+      ),
+    );
+    await snap(tester, '11_plan');
   });
 
   testWidgets('07 проекты', (tester) async {

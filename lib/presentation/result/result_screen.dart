@@ -16,6 +16,7 @@ import '../../export/pdf_exporter.dart';
 import '../../core/theme.dart';
 import '../../core/tips.dart';
 import '../widgets/tip_card.dart';
+import '../plan/plan_screen.dart';
 
 class ResultScreen extends StatelessWidget {
   final CalculationResult result;
@@ -144,6 +145,64 @@ class ResultScreen extends StatelessWidget {
                   _materialRow(context, panel.materials[i]),
                 ],
               ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text('План помещения', style: titleStyle),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.architecture_outlined,
+                          size: 20, color: scheme.primary),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Схема комнат и точек',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'План собирается автоматически из расчёта: комнаты, '
+                    'щит, розетки, светильники и выключатели. Можно '
+                    'подвинуть пальцем и сохранить с проектом.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.35,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.tonalIcon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => PlanScreen(
+                              result: result,
+                              projectName: projectName,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.open_in_new, size: 18),
+                      label: const Text('Открыть план'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
