@@ -334,4 +334,64 @@ void main() {
     final total = updated.rooms.fold<double>(0, (s, r) => s + r.cableLengthM);
     expect(total, greaterThan(0), reason: 'длины должны появиться из плана');
   });
+
+  testWidgets('архитектурный генератор даёт стены и точки', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final draft = draftOf();
+    container.read(projectDraftProvider.notifier).replaceDraft(draft);
+    final result = await calculate(draft);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: PlanScreen(result: result, projectName: 'Квартира'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Переключаемся на архитектурную раскладку
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Планировка со стенами'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final plan = container.read(projectDraftProvider).plan!;
+    expect(plan.walls, isNotEmpty, reason: 'у планировки должны быть стены');
+    expect(plan.openings, isNotEmpty, reason: 'проёмы (двери/окна) тоже');
+    expect(plan.devices, isNotEmpty, reason: 'точки расставляются поверх');
+    // Точки не выходят за пределы комнат
+    for (final device in plan.devices) {
+      final inside = plan.rooms.any((r) => r.rect.contains(device.x, device.y));
+      expect(inside, isTrue, reason: 'точка ${device.id} вне комнат');
+    }
+  });
+
+  testWidgets('у выбранной комнаты показывается размер', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final draft = draftOf();
+    container.read(projectDraftProvider.notifier).replaceDraft(draft);
+    final result = await calculate(draft);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: PlanScreen(result: result, projectName: 'Квартира'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final plan = container.read(projectDraftProvider).plan!;
+    container.read(planEditorProvider.notifier).selectRoom(plan.rooms.first.id);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('м²'), findsWidgets);
+    expect(find.textContaining('×'), findsWidgets);
+  });
 }

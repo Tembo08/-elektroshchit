@@ -4,7 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/project_draft.dart';
 import '../../plan/plan_auto.dart';
 import '../../plan/plan_canvas.dart';
+import '../../plan/plan_layout.dart';
 import '../../plan/plan_models.dart';
+
+/// Чем генерировать план.
+enum PlanGenerator {
+  /// `PlanAuto`: сетка комнат и точки по расчёту — быстрый эскиз.
+  auto,
+
+  /// `PlanLayout`: архитектурная геометрия со стенами, коридором и проёмами,
+  /// точки расставляются поверх.
+  layout,
+}
 
 /// Состояние экрана плана: что выбрано, каким инструментом работаем,
 /// какие слои показывать.
@@ -16,6 +27,9 @@ class PlanEditorState {
 
   /// Какой прибор ставим тапом в режиме «Точки».
   final PlanPointType pointType;
+
+  /// Каким генератором собирать план.
+  final PlanGenerator generator;
   final String? selectedRoomId;
   final String? selectedDeviceId;
   final bool showGrid;
@@ -26,6 +40,7 @@ class PlanEditorState {
   const PlanEditorState({
     this.tool = PlanTool.rooms,
     this.pointType = PlanPointType.socket,
+    this.generator = PlanGenerator.auto,
     this.selectedRoomId,
     this.selectedDeviceId,
     this.showGrid = true,
@@ -37,6 +52,7 @@ class PlanEditorState {
   PlanEditorState copyWith({
     PlanTool? tool,
     PlanPointType? pointType,
+    PlanGenerator? generator,
     String? selectedRoomId,
     String? selectedDeviceId,
     bool? showGrid,
@@ -49,6 +65,7 @@ class PlanEditorState {
     return PlanEditorState(
       tool: tool ?? this.tool,
       pointType: pointType ?? this.pointType,
+      generator: generator ?? this.generator,
       selectedRoomId: clearRoom ? null : (selectedRoomId ?? this.selectedRoomId),
       selectedDeviceId:
           clearDevice ? null : (selectedDeviceId ?? this.selectedDeviceId),
@@ -71,6 +88,9 @@ class PlanEditorNotifier extends Notifier<PlanEditorState> {
 
   void setPointType(PlanPointType type) =>
       state = state.copyWith(pointType: type);
+
+  void setGenerator(PlanGenerator generator) =>
+      state = state.copyWith(generator: generator);
 
   void selectRoom(String? id) => state = id == null
       ? state.copyWith(clearRoom: true, clearDevice: true)
@@ -115,9 +135,20 @@ final planGroupLabelsProvider =
 /// Сгенерировать план из черновика и результата расчёта.
 ///
 /// Используется при первом открытии экрана и по кнопке «Пересоздать».
+/// `generator` выбирает движок: эскиз (`PlanAuto`) или архитектурную
+/// геометрию (`PlanLayout` + расстановка точек поверх).
 ({FloorPlan plan, Map<String, String> groupLabels}) buildPlan({
   required ProjectDraft draft,
   required core.CalculationResult result,
+  PlanGenerator generator = PlanGenerator.auto,
 }) {
+  if (generator == PlanGenerator.layout) {
+    final layout = PlanLayout.build(draft);
+    return PlanLayoutDevices.fill(
+      draft: draft,
+      result: result,
+      layout: layout,
+    );
+  }
   return PlanAuto.build(draft: draft, result: result);
 }

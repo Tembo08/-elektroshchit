@@ -47,7 +47,12 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
     final draft = ref.read(projectDraftProvider);
     if (!force && draft.plan != null) return;
 
-    final built = buildPlan(draft: draft, result: widget.result);
+    final generator = ref.read(planEditorProvider).generator;
+    final built = buildPlan(
+      draft: draft,
+      result: widget.result,
+      generator: generator,
+    );
     ref.read(projectDraftProvider.notifier).setPlan(built.plan);
   }
 
@@ -88,6 +93,14 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
                   ref.read(planEditorProvider.notifier).toggleGrid();
                 case 'traces':
                   ref.read(planEditorProvider.notifier).toggleTraces();
+                case 'gen-auto':
+                case 'gen-layout':
+                  _setGenerator(
+                    context,
+                    value == 'gen-layout'
+                        ? PlanGenerator.layout
+                        : PlanGenerator.auto,
+                  );
                 case 'lengths':
                   if (plan != null) _applyLengths(context, plan);
                 case 'reset':
@@ -109,6 +122,17 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
               const PopupMenuItem(
                 value: 'lengths',
                 child: Text('Обновить длины из плана'),
+              ),
+              const PopupMenuDivider(),
+              CheckedPopupMenuItem(
+                value: 'gen-auto',
+                checked: editor.generator == PlanGenerator.auto,
+                child: const Text('Эскиз (быстрый)'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'gen-layout',
+                checked: editor.generator == PlanGenerator.layout,
+                child: const Text('Планировка со стенами'),
               ),
               const PopupMenuItem(
                 value: 'reset',
@@ -359,7 +383,26 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
                     ),
                   ],
                 ),
-              ] else
+              ] else if (editor.selectedRoomId != null &&
+                  plan.rooms.any((r) => r.id == editor.selectedRoomId))
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Builder(builder: (context) {
+                    final room = plan.rooms
+                        .firstWhere((r) => r.id == editor.selectedRoomId);
+                    return Text(
+                      '${room.name}: ${room.rect.width.toStringAsFixed(1)} × '
+                      '${room.rect.height.toStringAsFixed(1)} м '
+                      '(${room.rect.area.toStringAsFixed(1)} м²)',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.primary,
+                      ),
+                    );
+                  }),
+                )
+              else
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
@@ -419,6 +462,21 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
   }
 
   // ── действия меню ────────────────────────────────────────────────
+
+  /// Меняет движок раскладки и сразу пересобирает план.
+  void _setGenerator(BuildContext context, PlanGenerator generator) {
+    ref.read(planEditorProvider.notifier).setGenerator(generator);
+    _ensurePlan(force: true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          generator == PlanGenerator.layout
+              ? 'План перестроен по архитектурной раскладке'
+              : 'План перестроен по быстрому эскизу',
+        ),
+      ),
+    );
+  }
 
   /// Переносит длины трасс из плана в черновик: комнаты получают
   /// `cableLengthM`, дальше расчёт считает падение напряжения по ним.

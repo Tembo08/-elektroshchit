@@ -350,3 +350,106 @@ class PlanLayout {
 
   static double _q(double v) => (v * 20).roundToDouble() / 20;
 }
+
+/// Раскладка точек внутри готовых комнат `PlanLayout`.
+///
+/// `PlanLayout` даёт архитектурную геометрию (стены, проёмы, коридор), но
+/// не расставляет приборы. Эта функция добивает точки по количествам из
+/// черновика, чтобы план был «электрическим», а не только архитектурным.
+class PlanLayoutDevices {
+  static const _step = 0.45;
+
+  /// Возвращает копию плана с точками и подписями групп.
+  static ({FloorPlan plan, Map<String, String> groupLabels}) fill({
+    required ProjectDraft draft,
+    required core.CalculationResult result,
+    required FloorPlan layout,
+  }) {
+    final devices = <PlanDevice>[];
+    for (final room in layout.rooms) {
+      final source = draft.rooms
+          .where((r) => r.id == room.id || r.name == room.name)
+          .firstOrNull;
+      if (source == null) continue;
+
+      devices.addAll(_devicesFor(room, source));
+    }
+
+    // Подписи групп — те же, что у PlanAuto: по id потребителей.
+    final labels = <String, String>{};
+    for (final group in result.groups) {
+      for (final consumerId in group.consumerIds) {
+        final cut = consumerId.indexOf('#');
+        if (cut <= 0) continue;
+        final roomId = consumerId.substring(0, cut);
+        final number = group.name.replaceAll(RegExp(r'[^0-9]'), '');
+        if (number.isEmpty) continue;
+        final existing = labels[roomId];
+        labels[roomId] = existing == null ? number : '$existing, $number';
+      }
+    }
+
+    return (
+      plan: layout.copyWith(devices: devices),
+      groupLabels: labels,
+    );
+  }
+
+  static List<PlanDevice> _devicesFor(PlanRoom room, RoomDraft source) {
+    final result = <PlanDevice>[];
+    final rect = room.rect;
+    // Розетки — рядами от нижней стены, как на монтажных планах.
+    final sockets = [
+      ...List.filled(source.socketsNormal, PlanPointType.socket),
+      ...List.filled(source.mirrorSockets, PlanPointType.socket),
+      ...List.filled(source.dedicatedCount, PlanPointType.powerful),
+    ];
+    var index = 0;
+    for (final type in sockets) {
+      final perRow = math.max(1, ((rect.width - 0.4) / _step).floor());
+      final row = index ~/ perRow;
+      final col = index % perRow;
+      final x = rect.left + 0.22 + col * _step;
+      final y = rect.bottom - 0.18 - row * _step * 0.8;
+      if (y < rect.top + 0.2) break;
+      result.add(PlanDevice(
+        id: '${room.id}#${type.name}$index',
+        roomId: room.id,
+        type: type,
+        x: _round(x),
+        y: _round(y),
+      ));
+      index++;
+    }
+
+    // Светильники — по центру комнаты, до четырёх.
+    final lights = math.min(source.lights, 4);
+    for (var i = 0; i < lights; i++) {
+      final x = lights == 1
+          ? rect.center.dx
+          : rect.left + rect.width * (i + 1) / (lights + 1);
+      result.add(PlanDevice(
+        id: '${room.id}#light$i',
+        roomId: room.id,
+        type: PlanPointType.light,
+        x: _round(x),
+        y: _round(rect.center.dy),
+      ));
+    }
+
+    // Выключатели — блоком у входа (левый нижний угол комнаты).
+    final switches = math.min(source.switches, 3);
+    for (var i = 0; i < switches; i++) {
+      result.add(PlanDevice(
+        id: '${room.id}#switch$i',
+        roomId: room.id,
+        type: PlanPointType.switchPoint,
+        x: _round(rect.left + 0.2 + i * 0.3),
+        y: _round(rect.bottom - 0.2),
+      ));
+    }
+    return result;
+  }
+
+  static double _round(double value) => (value * 100).roundToDouble() / 100;
+}
