@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/project_draft.dart';
 import '../../plan/plan_canvas.dart';
 import '../../plan/plan_geometry.dart';
+import '../../plan/plan_seed.dart';
 import '../../plan/plan_models.dart';
 import 'plan_providers.dart';
 
@@ -61,6 +62,16 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
     final editor = ref.watch(planEditorProvider);
     final plan = draft.plan;
 
+    // План могли сбросить — тогда собираем заново, а не показываем
+    // бесконечный индикатор загрузки.
+    if (plan == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (ref.read(projectDraftProvider).plan != null) return;
+        _ensurePlan();
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('План помещения'),
@@ -77,6 +88,8 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
                   ref.read(planEditorProvider.notifier).toggleGrid();
                 case 'traces':
                   ref.read(planEditorProvider.notifier).toggleTraces();
+                case 'lengths':
+                  if (plan != null) _applyLengths(context, plan);
                 case 'reset':
                   _confirmReset(context);
               }
@@ -93,6 +106,10 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
                 child: const Text('Трассы'),
               ),
               const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'lengths',
+                child: Text('Обновить длины из плана'),
+              ),
               const PopupMenuItem(
                 value: 'reset',
                 child: Text('Сбросить план'),
@@ -198,6 +215,7 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
                     : 'ввод ${widget.result.inputGroup!.breakerAmps} А',
                 showGrid: editor.showGrid,
                 showElectrical: editor.showElectrical,
+                showTraces: editor.showTraces,
                 onTap: (meters) => _onTap(meters, plan, editor),
                 onRoomGrab: (roomId, edge) {
                   _grabbedEdge = edge;
@@ -401,6 +419,37 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
   }
 
   // ── действия меню ────────────────────────────────────────────────
+
+  /// Переносит длины трасс из плана в черновик: комнаты получают
+  /// `cableLengthM`, дальше расчёт считает падение напряжения по ним.
+  void _applyLengths(BuildContext context, FloorPlan plan) {
+    final draft = ref.read(projectDraftProvider);
+    final updated = PlanSeed.applyToDraft(draft, plan);
+    ref.read(projectDraftProvider.notifier).replaceDraft(updated);
+
+    final total = updated.rooms.fold<double>(
+      0,
+      (sum, room) => sum + room.cableLengthM,
+    );
+    final changed = updated.rooms.where((r) {
+      final before = draft.rooms.firstWhere(
+        (x) => x.id == r.id,
+        orElse: () => r,
+      );
+      return (before.cableLengthM - r.cableLengthM).abs() > 0.05;
+    }).length;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          changed == 0
+              ? 'Длины уже совпадают с планом'
+              : 'Обновлено комнат: $changed · всего кабеля '
+                  '${total.toStringAsFixed(1)} м',
+        ),
+      ),
+    );
+  }
 
   Future<void> _confirmRegenerate(BuildContext context) async {
     final ok = await showDialog<bool>(

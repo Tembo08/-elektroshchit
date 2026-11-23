@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:elektroshchit/core/project_draft.dart';
 import 'package:elektroshchit/plan/plan_models.dart';
 import 'package:elektroshchit/presentation/plan/plan_screen.dart';
+import 'package:elektroshchit/presentation/plan/plan_providers.dart';
 
 ProjectDraft draftOf() => const ProjectDraft(
       name: 'Квартира',
@@ -263,5 +264,74 @@ void main() {
     await tester.tap(find.text('Свет'));
     await tester.pumpAndSettle();
     expect(find.textContaining('светильник'), findsWidgets);
+  });
+
+  testWidgets('слой трасс включается и выключается', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final draft = draftOf();
+    container.read(projectDraftProvider.notifier).replaceDraft(draft);
+    final result = await calculate(draft);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: PlanScreen(result: result, projectName: 'Квартира'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      container.read(planEditorProvider).showTraces,
+      isFalse,
+      reason: 'по умолчанию трассы скрыты',
+    );
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Трассы'));
+    await tester.pumpAndSettle();
+
+    expect(container.read(planEditorProvider).showTraces, isTrue);
+  });
+
+  testWidgets('длины из плана попадают в комнаты черновика', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final draft = draftOf();
+    container.read(projectDraftProvider.notifier).replaceDraft(draft);
+    final result = await calculate(draft);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: PlanScreen(result: result, projectName: 'Квартира'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Обнуляем длины, чтобы увидеть эффект обновления.
+    // Берём актуальный черновик из провайдера: в нём уже есть план.
+    final current = container.read(projectDraftProvider);
+    final reset = current.copyWith(
+      rooms: [for (final r in current.rooms) r.copyWith(cableLengthM: 0)],
+    );
+    container.read(projectDraftProvider.notifier).replaceDraft(reset);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Обновить длины из плана'));
+    // SnackBar анимируется — ждём фиксированно, а не pumpAndSettle.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final updated = container.read(projectDraftProvider);
+    final total = updated.rooms.fold<double>(0, (s, r) => s + r.cableLengthM);
+    expect(total, greaterThan(0), reason: 'длины должны появиться из плана');
   });
 }

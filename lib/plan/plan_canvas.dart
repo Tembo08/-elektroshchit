@@ -54,6 +54,9 @@ class PlanCanvas extends StatelessWidget {
   /// Электрика: на этапе геометрии щит и точки скрыты.
   final bool showElectrical;
 
+  /// Слой трасс: линии от щита к точкам.
+  final bool showTraces;
+
   final void Function(Offset meters) onTap;
   final void Function(String roomId, PlanEdge? edge) onRoomGrab;
   final void Function(String roomId, Offset pointMeters) onRoomDragTo;
@@ -83,6 +86,7 @@ class PlanCanvas extends StatelessWidget {
     this.panelNote,
     this.showGrid = true,
     this.showElectrical = true,
+    this.showTraces = false,
   });
 
   @override
@@ -189,6 +193,7 @@ class PlanCanvas extends StatelessWidget {
               panelNote: panelNote,
               showGrid: showGrid,
               showElectrical: showElectrical,
+              showTraces: showTraces,
               selectedRoomId: selectedRoomId,
               selectedDeviceId: selectedDeviceId,
             ),
@@ -232,6 +237,7 @@ class _PlanPainter extends CustomPainter {
   final String? panelNote;
   final bool showGrid;
   final bool showElectrical;
+  final bool showTraces;
 
   /// Отложенные подписи групп: рисуются поверх щита и символов.
   final List<(Offset, String)> _pendingLabels = [];
@@ -244,6 +250,7 @@ class _PlanPainter extends CustomPainter {
     required this.groupLabels,
     required this.showGrid,
     required this.showElectrical,
+    required this.showTraces,
     this.panelNote,
     this.selectedRoomId,
     this.selectedDeviceId,
@@ -258,8 +265,7 @@ class _PlanPainter extends CustomPainter {
     if (showGrid) _grid(canvas);
     _rooms(canvas);
     if (showElectrical) {
-      // Трассы (провода) пока не рисуем: сначала расставляем элементы,
-      // линии добавим отдельным этапом.
+      if (showTraces) _wires(canvas);
       _devices(canvas);
     }
     _walls(canvas);
@@ -397,7 +403,7 @@ class _PlanPainter extends CustomPainter {
 
   /// Трассы групп. Пока не рисуются (элементы ставим без проводов),
   /// метод оставлен на следующий этап.
-  // ignore: unused_element
+  /// Трассы от щита к точкам: одна цветная линия на комнату.
   void _wires(Canvas canvas) {
     // Трассы групп. Пока не рисуются — элементы ставим без проводов;
     // вернём линии на следующем этапе.
@@ -771,5 +777,6 @@ class _PlanPainter extends CustomPainter {
       old.groupLabels != groupLabels ||
       old.panelNote != panelNote ||
       old.showGrid != showGrid ||
-      old.showElectrical != showElectrical;
+      old.showElectrical != showElectrical ||
+      old.showTraces != showTraces;
 }
