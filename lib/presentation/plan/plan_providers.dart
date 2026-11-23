@@ -13,6 +13,9 @@ import '../../plan/plan_models.dart';
 /// проектом и не расходится с расчётом.
 class PlanEditorState {
   final PlanTool tool;
+
+  /// Какой прибор ставим тапом в режиме «Точки».
+  final PlanPointType pointType;
   final String? selectedRoomId;
   final String? selectedDeviceId;
   final bool showGrid;
@@ -22,6 +25,7 @@ class PlanEditorState {
 
   const PlanEditorState({
     this.tool = PlanTool.rooms,
+    this.pointType = PlanPointType.socket,
     this.selectedRoomId,
     this.selectedDeviceId,
     this.showGrid = true,
@@ -32,6 +36,7 @@ class PlanEditorState {
 
   PlanEditorState copyWith({
     PlanTool? tool,
+    PlanPointType? pointType,
     String? selectedRoomId,
     String? selectedDeviceId,
     bool? showGrid,
@@ -43,6 +48,7 @@ class PlanEditorState {
   }) {
     return PlanEditorState(
       tool: tool ?? this.tool,
+      pointType: pointType ?? this.pointType,
       selectedRoomId: clearRoom ? null : (selectedRoomId ?? this.selectedRoomId),
       selectedDeviceId:
           clearDevice ? null : (selectedDeviceId ?? this.selectedDeviceId),
@@ -62,6 +68,9 @@ class PlanEditorNotifier extends Notifier<PlanEditorState> {
   PlanEditorState build() => const PlanEditorState();
 
   void setTool(PlanTool tool) => state = state.copyWith(tool: tool);
+
+  void setPointType(PlanPointType type) =>
+      state = state.copyWith(pointType: type);
 
   void selectRoom(String? id) => state = id == null
       ? state.copyWith(clearRoom: true, clearDevice: true)

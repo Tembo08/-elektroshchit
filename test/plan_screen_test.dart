@@ -195,4 +195,73 @@ void main() {
     final after = container.read(projectDraftProvider).plan!;
     expect(after.rooms.first.rect.left, isNot(moved.rooms.first.rect.left));
   });
+
+  testWidgets('изменение размера комнаты за правую грань', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final draft = draftOf();
+    container.read(projectDraftProvider.notifier).replaceDraft(draft);
+    final result = await calculate(draft);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: PlanScreen(result: result, projectName: 'Квартира'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final before = container.read(projectDraftProvider).plan!;
+    final room = before.rooms.first;
+    // имитируем изменение размера через публичный путь: правим план напрямую
+    final resized = before.copyWith(rooms: [
+      room.copyWith(
+        rect: PlanRect(
+          left: room.rect.left,
+          top: room.rect.top,
+          width: room.rect.width - 1,
+          height: room.rect.height,
+        ),
+      ),
+      ...before.rooms.skip(1),
+    ]);
+    container.read(projectDraftProvider.notifier).setPlan(resized);
+    await tester.pumpAndSettle();
+
+    final after = container.read(projectDraftProvider).plan!;
+    expect(after.rooms.first.rect.width, lessThan(room.rect.width));
+    expect(after.rooms.first.rect.left, room.rect.left);
+  });
+
+  testWidgets('в режиме точек выбирается тип прибора', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final draft = draftOf();
+    container.read(projectDraftProvider.notifier).replaceDraft(draft);
+    final result = await calculate(draft);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: PlanScreen(result: result, projectName: 'Квартира'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // переключаемся на точки
+    await tester.tap(find.text('Точки'));
+    await tester.pumpAndSettle();
+    expect(find.text('Розетка'), findsOneWidget);
+    expect(find.text('Свет'), findsOneWidget);
+    expect(find.text('Выключатель'), findsOneWidget);
+
+    // выбираем «Свет»
+    await tester.tap(find.text('Свет'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('светильник'), findsWidgets);
+  });
 }

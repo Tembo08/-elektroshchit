@@ -31,6 +31,9 @@ class PlanScreen extends ConsumerStatefulWidget {
 class _PlanScreenState extends ConsumerState<PlanScreen> {
   late final Map<String, String> _groupLabels;
 
+  /// Какая грань комнаты схвачена — нужна для изменения размера.
+  PlanEdge? _grabbedEdge;
+
   @override
   void initState() {
     super.initState();
@@ -111,6 +114,52 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
     );
   }
 
+  /// Минимальный размер комнаты, м: меньше — пальцем не попасть.
+  static const _minRoomSize = 1.2;
+
+  /// Перенос комнаты с привязкой к сетке.
+  PlanRect _movedRect(PlanRect rect, Offset point) {
+    final dx = point.dx - (rect.left + rect.width / 2);
+    final dy = point.dy - (rect.top + rect.height / 2);
+    return PlanRect(
+      left: PlanGeometry.snap(rect.left + dx),
+      top: PlanGeometry.snap(rect.top + dy),
+      width: rect.width,
+      height: rect.height,
+    );
+  }
+
+  /// Изменение размера за схваченную грань с привязкой к сетке.
+  PlanRect _resizedRect(PlanRect rect, Offset point, PlanEdge edge) {
+    var left = rect.left;
+    var top = rect.top;
+    var right = rect.right;
+    var bottom = rect.bottom;
+
+    final x = PlanGeometry.snap(point.dx);
+    final y = PlanGeometry.snap(point.dy);
+
+    switch (edge) {
+      case PlanEdge.left:
+        left = math.min(x, right - _minRoomSize);
+      case PlanEdge.right:
+        right = math.max(x, left + _minRoomSize);
+      case PlanEdge.top:
+        top = math.min(y, bottom - _minRoomSize);
+      case PlanEdge.bottom:
+        bottom = math.max(y, top + _minRoomSize);
+      case PlanEdge.corner:
+        return _movedRect(rect, point);
+    }
+
+    return PlanRect(
+      left: PlanGeometry.snap(left),
+      top: PlanGeometry.snap(top),
+      width: PlanGeometry.snap(right - left),
+      height: PlanGeometry.snap(bottom - top),
+    );
+  }
+
   // ── холст ────────────────────────────────────────────────────────
 
   Widget _canvas(BuildContext context, FloorPlan plan, PlanEditorState editor) {
@@ -151,31 +200,25 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
                 showElectrical: editor.showElectrical,
                 onTap: (meters) => _onTap(meters, plan, editor),
                 onRoomGrab: (roomId, edge) {
+                  _grabbedEdge = edge;
                   ref.read(planEditorProvider.notifier).selectRoom(roomId);
                 },
                 onRoomDragTo: (roomId, point) {
                   final room = plan.rooms.firstWhere((r) => r.id == roomId);
-                  final dx = point.dx - (room.rect.left + room.rect.width / 2);
-                  final dy = point.dy - (room.rect.top + room.rect.height / 2);
-                  final moved = plan.copyWith(
+                  final edge = _grabbedEdge;
+                  final next = (edge == null || edge == PlanEdge.corner)
+                      ? _movedRect(room.rect, point)
+                      : _resizedRect(room.rect, point, edge);
+                  _savePlan(plan.copyWith(
                     rooms: [
                       for (final r in plan.rooms)
-                        if (r.id == roomId)
-                          r.copyWith(
-                            rect: PlanRect(
-                              left: PlanGeometry.snap(r.rect.left + dx),
-                              top: PlanGeometry.snap(r.rect.top + dy),
-                              width: r.rect.width,
-                              height: r.rect.height,
-                            ),
-                          )
-                        else
-                          r,
+                        if (r.id == roomId) r.copyWith(rect: next) else r,
                     ],
-                  );
-                  _savePlan(moved);
+                  ));
                 },
-                onRoomDrop: (_) {},
+                onRoomDrop: (_) {
+                  _grabbedEdge = null;
+                },
                 onDeviceGrab: (deviceId) {
                   ref.read(planEditorProvider.notifier).selectDevice(deviceId);
                 },
@@ -224,7 +267,7 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
     final device = PlanDevice(
       id: 'd${DateTime.now().microsecondsSinceEpoch}',
       roomId: room.id,
-      type: PlanPointType.socket,
+      type: editor.pointType,
       x: PlanGeometry.snap(meters.dx),
       y: PlanGeometry.snap(meters.dy),
     );
@@ -266,6 +309,18 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
                   ),
                 ],
               ),
+              if (editor.tool == PlanTool.points && selectedDevice == null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _typeChip('Розетка', PlanPointType.socket, editor),
+                    const SizedBox(width: 6),
+                    _typeChip('Свет', PlanPointType.light, editor),
+                    const SizedBox(width: 6),
+                    _typeChip('Выключатель', PlanPointType.switchPoint, editor),
+                  ],
+                ),
+              ],
               if (selectedDevice != null) ...[
                 const SizedBox(height: 8),
                 Row(
@@ -304,10 +359,28 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
     );
   }
 
+  Widget _typeChip(String label, PlanPointType type, PlanEditorState editor) {
+    final selected = editor.pointType == type;
+    return ChoiceChip(
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      selected: selected,
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      onSelected: (_) => ref.read(planEditorProvider.notifier).setPointType(type),
+    );
+  }
+
   String _hint(PlanEditorState editor) => switch (editor.tool) {
         PlanTool.rooms => 'Тяните комнату пальцем, чтобы переместить',
-        PlanTool.points => 'Тап по комнате добавит розетку',
+        PlanTool.points => 'Тап по комнате добавит ${_pointLabel(editor.pointType)}',
         PlanTool.panel => 'Тяните щит, чтобы переставить',
+      };
+
+  String _pointLabel(PlanPointType type) => switch (type) {
+        PlanPointType.socket => 'розетку',
+        PlanPointType.light => 'светильник',
+        PlanPointType.switchPoint => 'выключатель',
+        PlanPointType.powerful => 'мощную точку',
       };
 
   String _deviceLabel(PlanPointType type) => switch (type) {
